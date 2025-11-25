@@ -1,0 +1,11 @@
+<button class="mic-toggle" [class.recording]="recording" (click)="toggleRecording()" type="button">
+  <span class="icon">
+    {{ recording ? '⏹' : '🎤' }}
+  </span>
+  <span class="label">
+    {{ recording ? 'Recording... tap to submit' : 'Start voice answer' }}
+  </span>
+</button>
+<p class="mic-hint">
+  {{ recording ? 'We are listening. Wrap up when you are ready.' : 'Prefer to speak it out? Tap the mic to record.' }}
+</p>

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Clarity",
+    "description": "Is the message easy to understand?"
+  },
+  {
+    "name": "Confidence & Tone",
+    "description": "Is the delivery persuasive and fluent?"
+  },
+  {
+    "name": "Relevance",
+    "description": "Does it address the question and product?"
+  },
+  {
+    "name": "Completeness",
+    "description": "Does it cover all key points?"
+  },
+  {
+    "name": "Accuracy",
+    "description": "Are all facts aligned with the document?"
+  },
+  {
+    "name": "Enthusiasm",
+    "description": "is speaker enthusiastic"
+  }
+]

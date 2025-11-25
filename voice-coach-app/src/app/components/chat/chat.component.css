@@ -1,0 +1,123 @@
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #1e1f22;
+  color: #e2e2e2;
+  font-family: 'Poppins', sans-serif;
+}
+
+.chat-header {
+  background: #181a1e;
+  padding: 1rem 1.5rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #10a37f;
+  border-bottom: 1px solid #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.user {
+  text-align: right;
+}
+
+.bot {
+  text-align: left;
+}
+.bubble pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.bubble {
+  display: inline-block;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  max-width: 70%;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  background-color: #2b2d31;
+  color: #e2e2e2;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+.user .bubble {
+  background-color: #10a37f;
+  color: white;
+  align-self: flex-end;
+  text-align: left;
+}
+
+.chat-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #181a1e;
+  border-top: 1px solid #333;
+}
+
+.chat-footer input {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  border: none;
+  background: #2b2d31;
+  color: white;
+  font-size: 1rem;
+}
+
+.chat-footer input::placeholder {
+  color: #999;
+}
+
+.chat-footer button {
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.chat-footer button:nth-child(2) {
+  background-color: #10a37f;
+  color: white;
+}
+
+.chat-footer button:nth-child(3) {
+  background-color: #333;
+  color: #ccc;
+}
+
+.chat-footer button:hover {
+  filter: brightness(1.1);
+}
+
+.gear-button {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: #10a37f;
+  cursor: pointer;
+}

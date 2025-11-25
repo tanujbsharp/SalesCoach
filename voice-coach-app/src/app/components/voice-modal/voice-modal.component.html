@@ -1,0 +1,26 @@
+<div class="voice-modal" [ngClass]="variant">
+  <div class="glow-circle"></div>
+
+  <canvas #canvas></canvas>
+  <p class="prompt" *ngIf="prompt">{{ prompt }}</p>
+  <!-- Countdown before recording starts -->
+<div class="countdown" *ngIf="showCountdown">
+  <h2>{{ countdown }}</h2>
+</div>
+
+<!-- Timer while recording -->
+<div class="timer" *ngIf="!showCountdown && !isProcessing">
+  ⏳ {{ displayTime }}
+</div>
+  <div class="transcript">
+    {{ isProcessing ? "Transcribing..." : transcript || "Say something..." }}
+  </div>
+  
+  <div class="actions">
+    <button (click)="confirm()" [disabled]="isProcessing">
+      <span *ngIf="isProcessing" class="spinner"></span>
+      <span *ngIf="!isProcessing">Confirm</span>
+    </button>
+    <button (click)="cancel()">Cancel</button>
+  </div>
+</div>

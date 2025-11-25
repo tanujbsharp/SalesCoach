@@ -1,0 +1,78 @@
+.instructions-container {
+  max-width: 700px;
+  margin: 2rem auto;
+  padding: 1rem;
+  background: #1e1f22;
+  color: white;
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+h2 {
+  color: #10a37f;
+  margin-bottom: 1.2rem;
+  text-align: center;
+}
+
+.rubric-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.rubric-row input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #444;
+  background: #2b2d31;
+  color: white;
+  border-radius: 6px;
+}
+
+.rubric-row button {
+  background: #ff5555;
+  border: none;
+  color: white;
+  padding: 0 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.buttons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+
+button[type="submit"] {
+  background: #10a37f;
+  color: white;
+}
+
+button[type="button"] {
+  background: #333;
+  color: #ccc;
+}
+
+button {
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  background-color: #10a37f;
+  color: white;
+  margin: 0 0.25rem;
+}
+
+button:hover {
+  filter: brightness(1.1);
+}

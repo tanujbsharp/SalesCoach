@@ -1,0 +1,13 @@
+<div class="instructions-container">
+  <h2>Sales Coach Rubric Settings</h2>
+
+  <div class="rubric-section" *ngFor="let criterion of rubric; let i = index">
+    <input [(ngModel)]="criterion.name" placeholder="Criterion name" />
+    <input [(ngModel)]="criterion.description" placeholder="Description" />
+    <button (click)="removeCriterion(i)">✖</button>
+  </div>
+
+  <button (click)="addCriterion()">➕ Add Criterion</button>
+  <button (click)="saveRubric()">💾 Save Rubric</button>
+  <button (click)="goToChat()">↩ Back to Chat</button>
+</div>

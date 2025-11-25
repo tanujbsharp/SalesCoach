@@ -1,0 +1,9 @@
+<div class="voice-container" (click)="startListening()">
+    <div class="mic-circle" [class.listening]="listening">
+      <span class="icon">🎙️</span>
+    </div>
+    <p *ngIf="!listening">Tap to speak</p>
+    <div class="waveform" *ngIf="listening">
+      <div class="bar" *ngFor="let b of [1,2,3,4,5,6]"></div>
+    </div>
+  </div>

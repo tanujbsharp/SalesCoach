@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+openai
+pyttsx3
+gTTS
+whisper
+ffmpeg-python
+python-dotenv
+python-docx
+python-pptx
+PyPDF2
+better-profanity

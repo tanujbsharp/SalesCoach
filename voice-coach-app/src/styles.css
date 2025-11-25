@@ -1,0 +1,7 @@
+html, body {
+    margin: 0;
+    height: 100%;
+    background-color: #1e1f22 !important;
+    color: #e2e2e2 !important;
+    font-family: 'Inter', sans-serif;
+  }

@@ -1,0 +1,31 @@
+<div class="chat-container">
+  <div class="chat-header">
+    Pitch Perfect: Sales Coach
+    <div class="chat-header-actions">
+      <button class="gear-button" (click)="goToInstructions()">⚙️</button>
+      <button class="gear-button" (click)="goToUpload()">⬅️</button>
+    </div>
+  </div>
+
+  <div class="chat-messages">
+    <div *ngFor="let msg of messages" [ngClass]="msg.from">
+      <div class="bubble" [innerHTML]="msg.text"></div>
+    </div>
+  </div>
+
+  <div class="chat-footer">
+    <input
+      [(ngModel)]="userText"
+      (keydown.enter)="submitText()"
+      placeholder="Type your answer..."
+    />
+    <button (click)="submitText()">Confirm</button>
+    <button (click)="openVoiceModal()">🎤</button>
+  </div>
+
+  <app-voice-modal
+    *ngIf="showVoiceModal"
+    (onClose)="showVoiceModal = false"
+    (onTranscriptReady)="handleVoiceResponse($event)">
+  </app-voice-modal>
+</div>

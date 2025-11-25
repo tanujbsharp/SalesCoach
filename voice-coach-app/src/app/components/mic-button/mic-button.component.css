@@ -1,0 +1,38 @@
+.mic-toggle {
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  padding: 0.85rem 1.2rem;
+  background: linear-gradient(120deg, #2563eb, #7c3aed);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  box-shadow: 0 12px 30px -18px rgba(37, 99, 235, 0.8);
+}
+
+.mic-toggle .icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.mic-toggle.recording {
+  background: linear-gradient(120deg, #e11d48, #f97316);
+  box-shadow: 0 18px 40px -20px rgba(225, 29, 72, 0.7);
+}
+
+.mic-toggle:active {
+  transform: scale(0.98);
+}
+
+.mic-hint {
+  margin: 0.35rem 0 0;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
