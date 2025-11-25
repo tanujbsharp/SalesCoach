@@ -4,14 +4,10 @@ import re
 
 from better_profanity import profanity
 from dotenv import load_dotenv
-from openai import OpenAI
+
+from bedrock_client import bedrock_completion
 
 load_dotenv()
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise RuntimeError("OPENAI_API_KEY is not set. Update your .env file.")
-
-client = OpenAI(api_key=api_key)
 profanity.load_censor_words()
 
 def load_rubric():
@@ -69,13 +65,9 @@ Return the result in this HTML format:
 """
 
     try:
-        print("🔍 Sending prompt to OpenAI...")
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        reply = response.choices[0].message.content
-        print("✅ GPT response received:\n", reply)
+        print("🔍 Sending prompt to Bedrock...")
+        reply = bedrock_completion(prompt, max_tokens=800, temperature=0.4)
+        print("✅ Bedrock response received:\n", reply)
 
         match = re.search(r"Score:\s*(\d+)\s*on\s*10", reply)
         score = int(match.group(1)) if match else 0
@@ -83,5 +75,5 @@ Return the result in this HTML format:
         return reply.strip(), score
 
     except Exception as e:
-        print("❌ GPT error:", e)
+        print("❌ Bedrock error:", e)
         return "Sorry, there was a problem evaluating your response.", 0

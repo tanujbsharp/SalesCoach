@@ -1,0 +1,246 @@
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from django.conf import settings
+
+from document import extract_text
+from tts import generate_tts
+
+DocumentRecord = Dict[str, Any]
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+UPLOAD_DIR = settings.MEDIA_ROOT
+
+document_path = BASE_DIR / "knowledge" / "EchoDot.pptx"
+
+DOCUMENT_STORE: Dict[str, DocumentRecord] = {}
+QUIZ_STORE: Dict[str, Dict[str, Any]] = {}
+DEFAULT_DOCUMENT_ID = "default"
+
+
+def _bootstrap_default_document() -> None:
+    try:
+        default_text = extract_text(str(document_path))
+    except Exception as exc:  # pragma: no cover - startup logging
+        print(f"⚠️ Failed to load default document: {exc}")
+        default_text = ""
+
+    DOCUMENT_STORE[DEFAULT_DOCUMENT_ID] = {
+        "text": default_text,
+        "filename": document_path.name,
+        "word_count": len(default_text.split()),
+        "question_history": [],
+    }
+
+
+def _get_document(document_id: Optional[str]) -> DocumentRecord:
+    if document_id:
+        doc = DOCUMENT_STORE.get(document_id)
+        if not doc:
+            raise ValueError("Document not found.")
+        return doc
+    default_doc = DOCUMENT_STORE.get(DEFAULT_DOCUMENT_ID)
+    if not default_doc:
+        raise ValueError("Default document missing.")
+    return default_doc
+
+
+def _extract_concepts(text: str) -> List[Dict[str, str]]:
+    """
+    Use the LLM to break the document into a small set of distinct concepts.
+
+    Returns a list of { "title": str, "summary": str } items.
+    """
+    from bedrock_client import bedrock_completion
+
+    excerpt = text[:6000]
+    prompt = f"""
+You are a product knowledge designer.
+
+From the following product document, identify 4–7 distinct key concepts or features that a sales rep should learn.
+
+For each concept, provide:
+- a short, punchy title (max 8 words)
+- a 3–4 sentence explanation focused only on that concept (aim for 90–120 words), suitable for a standalone "knowledge card".
+
+Respond ONLY with valid compact JSON in this exact shape:
+{{
+  "concepts": [
+    {{ "title": "string", "summary": "string" }}
+  ]
+}}
+
+Do NOT include any other keys, comments, markdown or prose.
+
+Document:
+\"\"\"
+{excerpt}
+\"\"\"
+"""
+    try:
+        raw = bedrock_completion(prompt, max_tokens=700, temperature=0.6)
+        json_start = raw.find("{")
+        json_end = raw.rfind("}")
+        if json_start == -1 or json_end == -1:
+            raise ValueError("Model response was not valid JSON.")
+        payload = json.loads(raw[json_start : json_end + 1])
+        concepts = payload.get("concepts") or []
+        cleaned: List[Dict[str, str]] = []
+        for item in concepts:
+            title = str(item.get("title", "")).strip()
+            summary = str(item.get("summary", "")).strip()
+            if title and summary:
+                cleaned.append({"title": title, "summary": summary})
+        if not cleaned:
+            raise ValueError("No valid concepts returned.")
+        return cleaned
+    except Exception as exc:  # pragma: no cover - LLM failures
+        print("❌ Failed to extract concepts for knowledge cards:", exc)
+        # Fallback: use a single high-level overview as one concept
+        overview = _summarize_text(text, None)
+        return [{"title": "Overview", "summary": overview}]
+
+
+def _summarize_text(text: str, llm) -> str:
+    from bedrock_client import bedrock_completion
+
+    excerpt = text[:5000]
+    prompt = f"""
+You are a knowledge curator. Write a concise neutral summary (2-3 sentences) of the following document excerpt for a sales coach dashboard. Keep it under 70 words.
+
+Document:
+\"\"\" 
+{excerpt}
+\"\"\"
+"""
+    try:
+        return bedrock_completion(prompt, max_tokens=200, temperature=0.4)
+    except Exception as exc:  # pragma: no cover - LLM failures
+        print("❌ Failed to summarize document:", exc)
+        return text[:200]
+
+
+def _create_quiz(text: str, history: Optional[List[str]] = None) -> Dict[str, Any]:
+    from bedrock_client import bedrock_completion
+
+    excerpt = text[:4000]
+    asked = history or []
+    asked_block = "\n".join(f"- {q}" for q in asked) if asked else "None yet."
+    prompt = f"""
+Create exactly one multiple-choice question about the following document excerpt. Provide 4 answer choices labeled A-D and indicate the correct label.
+
+Avoid repeating any of these previous quiz questions:
+{asked_block}
+
+Respond with valid JSON using this schema:
+{{
+  "question": "string",
+  "options": [
+    {{ "label": "A", "text": "string" }},
+    {{ "label": "B", "text": "string" }},
+    {{ "label": "C", "text": "string" }},
+    {{ "label": "D", "text": "string" }}
+  ],
+  "answer": "A",
+  "explanation": "string"
+}}
+
+Document:
+\"\"\"
+{excerpt}
+\"\"\"
+"""
+    try:
+        raw = bedrock_completion(prompt, max_tokens=400, temperature=0.7)
+        json_start = raw.find("{")
+        json_end = raw.rfind("}")
+        if json_start == -1 or json_end == -1:
+            raise ValueError("Model response was not valid JSON.")
+        payload = json.loads(raw[json_start : json_end + 1])
+        return payload
+    except Exception as exc:  # pragma: no cover - LLM failures
+        print("❌ Failed to generate quiz:", exc)
+        return {
+            "question": "Which benefit resonates most with customers?",
+            "options": [
+                {"label": "A", "text": "Better sound quality"},
+                {"label": "B", "text": "Longer battery life"},
+                {"label": "C", "text": "Compact design"},
+                {"label": "D", "text": "Intuitive controls"},
+            ],
+            "answer": "A",
+            "explanation": "Highlighting tangible improvements reinforces value.",
+        }
+
+
+def build_knowledge_card(document_id: str) -> Dict[str, Any]:
+    """
+    Build a *single-concept* knowledge card for the given document.
+
+    Rather than summarising the whole document once, we:
+    - break it into multiple concepts (title + summary)
+    - on each call, return the next concept in the list
+    - generate and cache TTS audio per concept.
+    """
+    doc = _get_document(document_id)
+
+    # Lazily compute concept list on first request.
+    if "knowledge_concepts" not in doc:
+        doc["knowledge_concepts"] = _extract_concepts(doc["text"])
+        doc["knowledge_index"] = 0
+        doc["knowledge_audio_map"] = {}
+
+    concepts: List[Dict[str, str]] = doc.get("knowledge_concepts", [])
+    if not concepts:
+        # Extremely defensive: fall back to a simple snippet.
+        snippet = _summarize_text(doc["text"], None)
+        filename = f"knowledge-{document_id}.mp3"
+        audio_path = Path(UPLOAD_DIR) / filename
+        generated_path = generate_tts(snippet, str(audio_path))
+        audio_url = ""
+        if generated_path:
+            audio_url = f"{settings.MEDIA_URL.strip('/')}/{Path(generated_path).name}"
+        return {
+            "title": "Overview",
+            "snippet": snippet,
+            "audioUrl": audio_url,
+            "background": "#efe6ff",
+        }
+
+    index = int(doc.get("knowledge_index", 0)) % len(concepts)
+    concept = concepts[index]
+    # Advance index for next call (cycle through concepts).
+    doc["knowledge_index"] = (index + 1) % len(concepts)
+
+    title = concept.get("title") or "Key concept"
+    snippet = concept.get("summary") or ""
+
+    # Generate (and cache) audio per concept title.
+    audio_map: Dict[str, str] = doc.get("knowledge_audio_map") or {}
+    audio_url = audio_map.get(title, "")
+    if not audio_url and snippet:
+        safe_slug = "".join(c for c in title.lower() if c.isalnum() or c in ("-", "_")) or "concept"
+        filename = f"knowledge-{document_id}-{safe_slug}.mp3"
+        audio_path = Path(UPLOAD_DIR) / filename
+        generated_path = generate_tts(snippet, str(audio_path))
+        if generated_path:
+            audio_url = f"{settings.MEDIA_URL.strip('/')}/{Path(generated_path).name}"
+            audio_map[title] = audio_url
+            doc["knowledge_audio_map"] = audio_map
+
+    return {
+        "title": title,
+        "snippet": snippet,
+        "audioUrl": audio_url,
+        # Colour hint; front-end can ignore if using its own CSS,
+        # but we align with the previous purple knowledge card palette.
+        "background": "#efe6ff",
+    }
+
+
+def ensure_bootstrapped() -> None:
+    if DEFAULT_DOCUMENT_ID not in DOCUMENT_STORE:
+        _bootstrap_default_document()
+
+

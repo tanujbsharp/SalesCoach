@@ -30,17 +30,17 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: #1e1f22;
-  color: white;
-  padding: 1.5rem;
-  border: 1px solid #444;
+  background: #ffe4ef;
+  color: #7a0630;
+  padding: 1.75rem;
+  border: 1px solid #fecdd3;
   z-index: 9999;
-  width: 320px;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
+  width: min(360px, 95vw);
+  box-shadow: 0 35px 80px -45px rgba(190, 18, 60, 0.65);
 }
 
 .voice-modal.card {
-  width: 100%;
+  width: 95%;
   background: #fff1f2;
   border: 1px solid #fecdd3;
   box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.2);
@@ -58,15 +58,17 @@
   animation: pulse-glow 1.8s infinite ease-in-out;
 }
 .voice-modal.overlay .glow-circle {
-  background: #10a37f;
+  background: radial-gradient(circle at 30% 30%, #f87171, #c084fc);
   box-shadow:
-    0 0 20px #10a37f88,
-    0 0 40px #10a37f55,
-    0 0 60px #10a37f33;
+    0 0 30px rgba(248, 113, 113, 0.4),
+    0 0 60px rgba(192, 132, 252, 0.35);
 }
 
 .voice-modal.overlay canvas {
-  background: #010409;
+  background: linear-gradient(135deg, #ffe4ef 0%, #e0e7ff 100%);
+  border: 1px solid rgba(219, 39, 119, 0.35);
+  box-shadow: 0 25px 55px -45px rgba(190, 18, 60, 0.8);
+  padding: 0.15rem;
 }
 .voice-modal.card canvas {
   background: linear-gradient(135deg, #ffe4ef, #e0e7ff);
@@ -86,7 +88,7 @@ canvas {
   opacity: 0.8;
 }
 .voice-modal.overlay .transcript {
-  color: #cbd5f5;
+  color: #7a0630;
 }
 
 .prompt {
@@ -96,7 +98,8 @@ canvas {
   margin: 0.25rem 0 0;
 }
 .voice-modal.overlay .prompt {
-  color: #d6d3d1;
+  color: #7a0630;
+  opacity: 0.8;
 }
 
 .countdown h2,
@@ -106,7 +109,7 @@ canvas {
   color: inherit;
 }
 .voice-modal.overlay .timer {
-  color: #f8fafc;
+  color: #7a0630;
 }
 
 .actions {
@@ -131,7 +134,9 @@ canvas {
   color: white;
 }
 .voice-modal.overlay .actions button:first-child {
-  background: #10a37f;
+  background: linear-gradient(120deg, #db2777, #7c3aed);
+  color: white;
+  box-shadow: 0 20px 40px -22px rgba(219, 39, 119, 0.7);
 }
 
 .actions button:last-child {
@@ -140,9 +145,9 @@ canvas {
   color: inherit;
 }
 .voice-modal.overlay .actions button:last-child {
-  background: #333;
-  color: white;
-  border: none;
+  background: transparent;
+  color: #7a0630;
+  border: 1px solid rgba(122, 6, 48, 0.25);
 }
 
 .actions button:active {
@@ -161,5 +166,5 @@ canvas {
 }
 .voice-modal.overlay .spinner,
 .voice-modal.overlay .loader {
-  border-top-color: #10a37f;
+  border-top-color: #db2777;
 }

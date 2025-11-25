@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { DocumentMetadata, DocumentStateService } from '../../services/document-state.service';
 import { VoiceModalComponent } from '../voice-modal/voice-modal.component';
 
@@ -54,7 +54,7 @@ export class DocumentUploadComponent {
   quizSubmitting = false;
   quizSelection?: string;
 
-  constructor(private documentState: DocumentStateService) {
+  constructor(private documentState: DocumentStateService, private router: Router) {
     const meta = this.documentState.getMetadata();
     if (meta) {
       this.documentId = meta.id;
@@ -99,9 +99,8 @@ export class DocumentUploadComponent {
       this.documentId = meta.id;
       this.documentMeta = meta;
       this.documentState.setDocument(meta);
-      this.prepareForNewDocument();
-      this.startJourney();
-      await this.loadKnowledgeCard();
+      // After upload, go straight to the dedicated chat experience.
+      this.router.navigate(['/practice']);
     } catch (err: any) {
       this.errorMessage = err?.message || 'Upload failed.';
     } finally {
@@ -208,7 +207,11 @@ export class DocumentUploadComponent {
   }
 
   private processScenarioResult(result: ScenarioResult) {
-    this.scenarioResult = result;
+    const normalizedScore = this.extractScenarioScore(result);
+    this.scenarioResult = {
+      ...result,
+      score: normalizedScore
+    };
     this.closeScenarioModal();
     this.scenarioDraft = '';
   }
@@ -328,5 +331,32 @@ export class DocumentUploadComponent {
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+  }
+
+  private extractScenarioScore(result: ScenarioResult): number {
+    const rawScore = typeof result.score === 'number' ? result.score : 0;
+    if (rawScore && !Number.isNaN(rawScore)) {
+      return rawScore;
+    }
+
+    const feedback = result.feedback || '';
+
+    const scoreMatch = feedback.match(/score:\s*(\d+(?:\.\d+)?)\s*(?:\/|out of)?\s*10/i);
+    if (scoreMatch) {
+      const parsed = Number(scoreMatch[1]);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+
+    const percentMatch = feedback.match(/overall (?:performance )?rating:\s*(\d+(?:\.\d+)?)\s*%/i);
+    if (percentMatch) {
+      const percent = Number(percentMatch[1]);
+      if (!Number.isNaN(percent)) {
+        return percent / 10;
+      }
+    }
+
+    return 0;
   }
 }

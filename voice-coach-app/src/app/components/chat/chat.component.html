@@ -5,12 +5,120 @@
       <button class="gear-button" (click)="goToInstructions()">⚙️</button>
       <button class="gear-button" (click)="goToUpload()">⬅️</button>
     </div>
+
   </div>
 
-  <div class="chat-messages">
+  <div class="chat-messages" #messagesContainer>
     <div *ngFor="let msg of messages" [ngClass]="msg.from">
-      <div class="bubble" [innerHTML]="msg.text"></div>
+      <ng-container [ngSwitch]="msg.cardType">
+        <ng-container *ngSwitchCase="'quizHistory'">
+          <div class="card-container quiz-history-container" *ngIf="msg.quizHistory as history">
+            <div class="experience-card quiz-card">
+              <p class="eyebrow">Quiz card</p>
+              <p class="quiz-title">{{ history.question }}</p>
+              <div class="quiz-static-options">
+                <div
+                  *ngFor="let option of history.options"
+                  class="quiz-static-option"
+                  [ngClass]="{
+                    'quiz-correct': option.label === history.correctAnswer,
+                    'quiz-wrong':
+                      option.label === history.selected &&
+                      option.label !== history.correctAnswer
+                  }">
+                  <span class="badge">{{ option.label }}</span>
+                  <span>{{ option.text }}</span>
+                </div>
+              </div>
+              <div class="quiz-result-inline">
+                <p class="result-title">
+                  {{ history.correct ? 'Nice work!' : 'Let\'s review that.' }}
+                </p>
+                <p class="result-body">
+                  {{
+                    history.correct
+                      ? 'You picked the best answer based on the document.'
+                      : 'Your choice wasn’t quite right. Here\'s why:'
+                  }}
+                </p>
+                <p class="result-body" *ngIf="!history.correct && history.explanation">
+                  {{ history.explanation }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        <ng-container *ngSwitchCase="'activeQuiz'">
+          <div class="quiz-inline" *ngIf="quizQuestion">
+            <div class="experience-card quiz-card">
+              <p class="eyebrow">Quiz card</p>
+              <p class="quiz-title">{{ quizQuestion }}</p>
+              <div class="quiz-buttons">
+                <button
+                  *ngFor="let option of quizOptions"
+                  [ngClass]="{
+                    selected: quizSelection === option.label,
+                    'quiz-correct': quizAnswered && option.label === quizCorrectAnswer,
+                    'quiz-wrong':
+                      quizAnswered && option.label === quizSelection && !quizCorrect
+                  }"
+                  (click)="submitQuizOption(option.label)"
+                  [disabled]="quizSubmitting || quizAnswered">
+                  <span class="badge">{{ option.label }}</span>
+                  <span>{{ option.text }}</span>
+                </button>
+              </div>
+
+              <div class="quiz-result-inline" *ngIf="quizAnswered">
+                <p class="result-title">
+                  {{ quizCorrect ? 'Nice work!' : 'Let\'s review that.' }}
+                </p>
+                <p class="result-body">
+                  {{
+                    quizCorrect
+                      ? 'You picked the best answer based on the document.'
+                      : 'Your choice wasn\'t quite right. Here\'s why:'
+                  }}
+                </p>
+                <p class="result-body" *ngIf="!quizCorrect && quizExplanation">
+                  {{ quizExplanation }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        <ng-container *ngSwitchCase="'knowledge'">
+          <div class="card-container knowledge-card-container" *ngIf="msg.knowledgeCard as card">
+            <div class="experience-card knowledge-card">
+              <p class="knowledge-label">Knowledge card</p>
+              <div class="knowledge-body">
+                <p class="eyebrow">{{ card.title }}</p>
+                <p>{{ card.snippet }}</p>
+                <div class="voiceover" *ngIf="card.audioUrl">
+                  <audio controls [src]="card.audioUrl"></audio>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        <ng-container *ngSwitchDefault>
+          <div *ngIf="!msg.isCard" class="bubble" [innerHTML]="msg.text"></div>
+          <div *ngIf="msg.isCard" class="card-container" [innerHTML]="msg.text"></div>
+        </ng-container>
+      </ng-container>
     </div>
+
+    <div class="bot typing-placeholder" *ngIf="isBotTyping">
+      <div class="bubble typing-bubble">
+        <div class="typing-circle"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="quick-actions" *ngIf="showActionButtons">
+    <button (click)="triggerKnowledgeCard()">Knowledge Card</button>
+    <button (click)="triggerScenarioCard()">Scenario Card</button>
+    <button (click)="triggerQuizCard()">Quiz Card</button>
   </div>
 
   <div class="chat-footer">
@@ -23,9 +131,101 @@
     <button (click)="openVoiceModal()">🎤</button>
   </div>
 
+  <!-- Scenario modal popup (reusing previous styling/colors) -->
+  <div class="scenario-modal-backdrop" *ngIf="scenarioModalOpen">
+    <div class="scenario-modal">
+      <header>
+        <div>
+          <p class="scenario-label">Scenario practice</p>
+          <h2>Handle this customer scenario</h2>
+        </div>
+        <button type="button" (click)="closeScenarioModal()">✕</button>
+      </header>
+
+      <p class="scenario-modal-question">
+        {{ scenarioQuestion }}
+      </p>
+
+      <div class="mode-toggle">
+        <button
+          type="button"
+          (click)="openScenarioModal('voice')"
+          [class.active]="scenarioMode === 'voice'">
+          Voice
+        </button>
+        <button
+          type="button"
+          (click)="openScenarioModal('text')"
+          [class.active]="scenarioMode === 'text'">
+          Type
+        </button>
+      </div>
+
+      <div [ngSwitch]="scenarioMode">
+        <div *ngSwitchCase="'voice'" class="voice-mode">
+          <app-voice-modal
+            variant="card"
+            [prompt]="scenarioQuestion"
+            (onClose)="closeScenarioModal()"
+            (onTranscriptReady)="handleScenarioVoiceAnswer($event)">
+          </app-voice-modal>
+        </div>
+
+        <div *ngSwitchCase="'text'" class="text-mode">
+          <textarea
+            rows="5"
+            [(ngModel)]="scenarioDraft"
+            placeholder="Draft your response here...">
+          </textarea>
+
+          <div class="modal-actions">
+            <button type="button" class="ghost" (click)="closeScenarioModal()">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="primary"
+              [disabled]="scenarioSubmitting || !scenarioDraft.trim()"
+              (click)="submitScenarioDraft()">
+              {{ scenarioSubmitting ? 'Scoring...' : 'Submit answer' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="scenarioResult" class="scorecard">
+        <div class="score-summary">
+          <div>
+            <h3>Scenario feedback</h3>
+            <div
+              class="feedback-copy"
+              [innerHTML]="scenarioResult.feedback">
+            </div>
+          </div>
+          <div class="score-pill">
+            {{ scenarioResult.score | number : '1.0-1' }} / 10
+            <span>Overall score</span>
+          </div>
+        </div>
+
+        <div class="response-card" *ngIf="scenarioResult.transcript">
+          <p class="response-label">Your response</p>
+          <p>{{ scenarioResult.transcript }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <app-voice-modal
     *ngIf="showVoiceModal"
     (onClose)="showVoiceModal = false"
     (onTranscriptReady)="handleVoiceResponse($event)">
   </app-voice-modal>
+
+  <div class="loading-overlay" *ngIf="loadingOverlayVisible">
+    <div class="loading-overlay-card">
+      <div class="loading-spinner"></div>
+      <p>{{ loadingOverlayText }}</p>
+    </div>
+  </div>
 </div>

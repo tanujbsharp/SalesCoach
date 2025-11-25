@@ -1,6 +1,7 @@
-fastapi
-uvicorn
+django
+django-cors-headers
 python-multipart
+gunicorn
 openai
 pyttsx3
 gTTS
@@ -11,3 +12,4 @@ python-docx
 python-pptx
 PyPDF2
 better-profanity
+boto3

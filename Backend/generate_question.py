@@ -1,14 +1,4 @@
-import os
-
-from dotenv import load_dotenv
-from openai import OpenAI
-
-load_dotenv()
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise RuntimeError("OPENAI_API_KEY is not set. Update your .env file.")
-
-client = OpenAI(api_key=api_key)
+from bedrock_client import bedrock_completion
 
 RUBRIC_CATEGORIES = [
     "Clarity",
@@ -44,11 +34,8 @@ Output ONLY the question. No extra text.
 """
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content.strip()
+        reply = bedrock_completion(prompt, max_tokens=200, temperature=0.6)
+        return reply.strip()
     except Exception as e:
         print("❌ Question generation failed:", e)
         return f"Briefly demonstrate your {next_category.lower()} when explaining a feature."
