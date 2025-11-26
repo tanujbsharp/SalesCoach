@@ -18,9 +18,5 @@
   {
     "name": "Accuracy",
     "description": "Are all facts aligned with the document?"
-  },
-  {
-    "name": "Enthusiasm",
-    "description": "is speaker enthusiastic"
   }
 ]

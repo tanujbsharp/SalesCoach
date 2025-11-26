@@ -1,13 +1,55 @@
-<div class="instructions-container">
-  <h2>Sales Coach Rubric Settings</h2>
+<div class="instructions-shell">
+  <div class="instructions-card">
+    <header class="instructions-header">
+      <div>
+        <p class="eyebrow">Rubric builder</p>
+        <h2>Sales Coach Rubric</h2>
+        <p class="subtitle">
+          Keep the scoring rubric in sync with the coaching experience so the chat feedback stays credible.
+        </p>
+      </div>
+      <button type="button" class="ghost-button" (click)="goToChat()">Back to chat</button>
+    </header>
 
-  <div class="rubric-section" *ngFor="let criterion of rubric; let i = index">
-    <input [(ngModel)]="criterion.name" placeholder="Criterion name" />
-    <input [(ngModel)]="criterion.description" placeholder="Description" />
-    <button (click)="removeCriterion(i)">✖</button>
+    <section class="rubric-body" *ngIf="rubric.length; else emptyState">
+      <div class="rubric-entry" *ngFor="let criterion of rubric; let i = index">
+        <div class="entry-head">
+          <div class="entry-badge">{{ i + 1 }}</div>
+          <button type="button" class="icon-button" (click)="removeCriterion(i)">Remove</button>
+        </div>
+        <label>
+          <span>Criterion title</span>
+          <input
+            type="text"
+            [(ngModel)]="criterion.name"
+            placeholder="Example: Confidence & Tone"
+          />
+        </label>
+        <label>
+          <span>What should the learner demonstrate?</span>
+          <textarea
+            rows="3"
+            [(ngModel)]="criterion.description"
+            placeholder="Describe the behaviors, proof points, or techniques that a strong answer should include."
+          ></textarea>
+        </label>
+      </div>
+    </section>
+
+    <ng-template #emptyState>
+      <div class="empty-state">
+        <h3>No rubric yet</h3>
+        <p>Add the criteria you care about and the coach will grade against them automatically.</p>
+        <button type="button" class="primary-button" (click)="addCriterion()">Add your first criterion</button>
+      </div>
+    </ng-template>
+
+    <div class="instructions-actions">
+      <button type="button" class="ghost-button" (click)="addCriterion()">+ Add criterion</button>
+      <div class="cta-group">
+        <button type="button" class="outline-button" (click)="goToChat()">Cancel</button>
+        <button type="button" class="primary-button" (click)="saveRubric()">Save rubric</button>
+      </div>
+    </div>
   </div>
-
-  <button (click)="addCriterion()">➕ Add Criterion</button>
-  <button (click)="saveRubric()">💾 Save Rubric</button>
-  <button (click)="goToChat()">↩ Back to Chat</button>
 </div>
