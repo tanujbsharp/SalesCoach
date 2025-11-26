@@ -58,10 +58,10 @@
   animation: pulse-glow 1.8s infinite ease-in-out;
 }
 .voice-modal.overlay .glow-circle {
-  background: radial-gradient(circle at 30% 30%, #f87171, #c084fc);
+  background: radial-gradient(circle at 30% 30%, #fb7185, #c026d3);
   box-shadow:
-    0 0 30px rgba(248, 113, 113, 0.4),
-    0 0 60px rgba(192, 132, 252, 0.35);
+    0 0 35px rgba(251, 113, 133, 0.45),
+    0 0 65px rgba(192, 38, 211, 0.35);
 }
 
 .voice-modal.overlay canvas {
@@ -126,7 +126,7 @@ canvas {
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: all 0.25s ease;
 }
 
 .actions button:first-child {
@@ -139,6 +139,12 @@ canvas {
   box-shadow: 0 20px 40px -22px rgba(219, 39, 119, 0.7);
 }
 
+.actions button:first-child:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(219, 39, 119, 0.4);
+  background: linear-gradient(120deg, #e11d87, #8b5cf6);
+}
+
 .actions button:last-child {
   background: transparent;
   border: 1px solid rgba(15, 23, 42, 0.2);
@@ -148,6 +154,12 @@ canvas {
   background: transparent;
   color: #7a0630;
   border: 1px solid rgba(122, 6, 48, 0.25);
+}
+
+.actions button:last-child:hover {
+  background: rgba(219, 39, 119, 0.08);
+  border-color: rgba(122, 6, 48, 0.45);
+  transform: translateY(-1px);
 }
 
 .actions button:active {

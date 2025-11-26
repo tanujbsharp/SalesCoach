@@ -31,6 +31,13 @@ def evaluate_response(transcript: str, context: str):
     rubric_text = "\n".join([f"{i+1}. **{r['name']}** – {r['description']}" for i, r in enumerate(rubric)])
     rubric_html = "\n".join([f"<tr><td>{r['name']}</td><td>X</td><td>...</td></tr>" for r in rubric])
 
+    scoring_guardrails = """
+Important grading guardrails:
+- Only award an Accuracy score above 5 if the response explicitly references facts from the document (e.g., product specs, feature names, quantitative improvements). If it stays generic, lacks detail, or invents information, Accuracy must be 0–4.
+- If the learner skips key document facts entirely, Accuracy should be 2 or below even if there are no blatant errors.
+- When in doubt, err on the harsher side so scores reflect real readiness.
+""".strip()
+
     prompt = f"""
 You are an AI sales coach. Use the following product document as your knowledge base:
 
@@ -45,6 +52,8 @@ User's Response:
 
 Evaluate on the following criteria:
 {rubric_text}
+
+{scoring_guardrails}
 
 Give each criterion a score on 10 and explain why. Then give an overall average score and write a helpful feedback paragraph for the user to improve next time.
 
@@ -69,8 +78,9 @@ Return the result in this HTML format:
         reply = bedrock_completion(prompt, max_tokens=800, temperature=0.4)
         print("✅ Bedrock response received:\n", reply)
 
-        match = re.search(r"Score:\s*(\d+)\s*on\s*10", reply)
-        score = int(match.group(1)) if match else 0
+        plain_text = re.sub(r"<[^>]+>", "", reply)
+        match = re.search(r"Score:\s*([\d.]+)\s*on\s*10", plain_text, re.IGNORECASE)
+        score = float(match.group(1)) if match else 0.0
 
         return reply.strip(), score
 

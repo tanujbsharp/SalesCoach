@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from django.conf import settings
 
@@ -44,6 +45,21 @@ def _get_document(document_id: Optional[str]) -> DocumentRecord:
     if not default_doc:
         raise ValueError("Default document missing.")
     return default_doc
+
+
+def _format_profile_block(profile: Optional[Dict[str, Any]]) -> str:
+    if not profile:
+        return ""
+    try:
+        serialized = json.dumps(profile, ensure_ascii=False)
+    except TypeError:
+        serialized = str(profile)
+    return f"""
+Learner profile:
+{serialized}
+
+Use these strengths, weaknesses and knowledge gaps to prioritize what to surface first.
+""".strip()
 
 
 def _extract_concepts(text: str) -> List[Dict[str, str]]:
@@ -121,17 +137,32 @@ Document:
         return text[:200]
 
 
-def _create_quiz(text: str, history: Optional[List[str]] = None) -> Dict[str, Any]:
+def _create_quiz(
+    text: str,
+    history: Optional[List[str]] = None,
+    topic: Optional[str] = None,
+    learner_profile: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     from bedrock_client import bedrock_completion
 
     excerpt = text[:4000]
     asked = history or []
     asked_block = "\n".join(f"- {q}" for q in asked) if asked else "None yet."
+    topic_block = (
+        f"\nFocus the question narrowly on this learner-selected topic or gap: \"{topic.strip()}\".\n"
+        if topic
+        else "\nFeel free to cover any foundational part of the document that reinforces mastery.\n"
+    )
+    profile_block = _format_profile_block(learner_profile)
     prompt = f"""
 Create exactly one multiple-choice question about the following document excerpt. Provide 4 answer choices labeled A-D and indicate the correct label.
 
 Avoid repeating any of these previous quiz questions:
 {asked_block}
+
+{topic_block}
+
+{profile_block}
 
 Respond with valid JSON using this schema:
 {{
@@ -174,7 +205,70 @@ Document:
         }
 
 
-def build_knowledge_card(document_id: str) -> Dict[str, Any]:
+def _build_topic_card(
+    document_text: str,
+    document_id: str,
+    topic: str,
+    learner_profile: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    from bedrock_client import bedrock_completion
+
+    excerpt = document_text[:6000]
+    profile_block = _format_profile_block(learner_profile)
+    prompt = f"""
+You are a sales enablement strategist who builds focused knowledge cards.
+
+Using the following document excerpt, craft a single card that dives into the learner's requested topic: "{topic}".
+Keep the tone practical and coach-like. Stay concise (80-110 words) and highlight what matters most for a rep in the field.
+
+{profile_block}
+
+Return JSON shaped exactly like:
+{{
+  "title": "string",
+  "summary": "string"
+}}
+
+Document:
+\"\"\" 
+{excerpt}
+\"\"\"
+"""
+    try:
+        raw = bedrock_completion(prompt, max_tokens=450, temperature=0.55)
+        json_start = raw.find("{")
+        json_end = raw.rfind("}")
+        if json_start == -1 or json_end == -1:
+            raise ValueError("Model response was not valid JSON.")
+        payload = json.loads(raw[json_start : json_end + 1])
+        title = str(payload.get("title", "") or topic).strip() or "Focused insight"
+        summary = str(payload.get("summary", "")).strip() or "Here's what to know."
+    except Exception as exc:  # pragma: no cover - LLM failures
+        print("❌ Failed to build topic knowledge card:", exc)
+        title = topic or "Key insight"
+        summary = "Let's double down on this area from the document."
+
+    filename = f"knowledge-topic-{document_id}-{uuid4().hex}.mp3"
+    audio_path = Path(UPLOAD_DIR) / filename
+    audio_url = ""
+    generated_path = generate_tts(summary, str(audio_path))
+    if generated_path:
+        audio_url = f"{settings.MEDIA_URL.strip('/')}/{Path(generated_path).name}"
+
+    return {
+        "title": title,
+        "snippet": summary,
+        "audioUrl": audio_url,
+        "background": "#efe6ff",
+    }
+
+
+def build_knowledge_card(
+    document_id: str,
+    preference: str = "pathway",
+    topic: Optional[str] = None,
+    learner_profile: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """
     Build a *single-concept* knowledge card for the given document.
 
@@ -186,6 +280,11 @@ def build_knowledge_card(document_id: str) -> Dict[str, Any]:
     doc = _get_document(document_id)
 
     # Lazily compute concept list on first request.
+    preference_normalized = (preference or "pathway").lower()
+
+    if preference_normalized == "topic" and topic:
+        return _build_topic_card(doc["text"], document_id, topic, learner_profile)
+
     if "knowledge_concepts" not in doc:
         doc["knowledge_concepts"] = _extract_concepts(doc["text"])
         doc["knowledge_index"] = 0

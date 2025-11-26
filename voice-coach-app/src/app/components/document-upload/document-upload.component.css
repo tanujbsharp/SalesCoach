@@ -57,6 +57,13 @@
   text-align: center;
   cursor: pointer;
   color: #475569;
+  transition: all 0.3s ease;
+}
+
+.file-picker:hover {
+  border-color: #2563eb;
+  background: #f0f7ff;
+  transform: scale(1.01);
 }
 
 .file-picker input {
@@ -71,8 +78,14 @@ button.primary {
   border-radius: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  transition: all 0.3s ease;
   box-shadow: 0 15px 30px -20px rgba(37, 99, 235, 0.8);
+}
+
+button.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-3px);
+  box-shadow: 0 20px 40px -18px rgba(37, 99, 235, 0.9);
 }
 
 button.primary:disabled {
@@ -88,6 +101,13 @@ button.ghost {
   padding: 0.65rem 1.2rem;
   border-radius: 0.9rem;
   cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+button.ghost:hover {
+  background: #f0f7ff;
+  border-color: #93c5fd;
+  transform: translateY(-2px);
 }
 
 .link-button {
@@ -100,6 +120,13 @@ button.ghost {
   color: #0f172a;
   text-decoration: none;
   font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.link-button:hover {
+  background: #f0f7ff;
+  border-color: #93c5fd;
+  transform: translateX(4px);
 }
 
 .meta {
@@ -272,7 +299,13 @@ button.ghost {
   align-items: center;
   font-size: 1rem;
   cursor: pointer;
-  transition: border 0.2s ease, transform 0.15s ease;
+  transition: all 0.25s ease;
+}
+
+.quiz-option:hover:not(:disabled) {
+  transform: translateX(6px);
+  border-color: #93c5fd;
+  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.15);
 }
 
 .quiz-option .badge {
@@ -352,6 +385,12 @@ button.ghost {
   height: 36px;
   border-radius: 50%;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scenario-modal header button:hover {
+  background: #e2e8f0;
+  transform: rotate(90deg);
 }
 
 .scenario-modal-question {
@@ -373,6 +412,12 @@ button.ghost {
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-toggle button:hover:not(.active) {
+  background: #f1f5f9;
+  color: #334155;
 }
 
 .mode-toggle button.active {

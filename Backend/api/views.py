@@ -26,6 +26,28 @@ from .services import (
 ensure_bootstrapped()
 
 
+def _parse_profile(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    profile = data.get("learnerProfile")
+    if isinstance(profile, dict):
+        return profile
+    return None
+
+
+def _format_profile_blob(profile: Optional[Dict[str, Any]]) -> str:
+    if not profile:
+        return ""
+    try:
+        serialized = json.dumps(profile, ensure_ascii=False)
+    except TypeError:
+        serialized = str(profile)
+    return f"""
+Here is the learner profile with known strengths, weaknesses, and knowledge gaps:
+{serialized}
+
+Reference it to personalize your coaching.
+"""
+
+
 @csrf_exempt
 def upload_document(request: HttpRequest):
     if request.method != "POST":
@@ -69,10 +91,25 @@ def upload_document(request: HttpRequest):
     )
 
 
+@csrf_exempt
 def get_knowledge_card(request: HttpRequest):
-    document_id = request.GET.get("documentId")
+    if request.method == "POST":
+        try:
+            payload = json.loads(request.body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return HttpResponseBadRequest("Invalid JSON")
+        document_id = payload.get("documentId")
+        preference = payload.get("preference") or "pathway"
+        topic = payload.get("topic")
+        learner_profile = _parse_profile(payload)
+    else:
+        document_id = request.GET.get("documentId")
+        preference = "pathway"
+        topic = None
+        learner_profile = None
+
     try:
-        data = build_knowledge_card(document_id or "")
+        data = build_knowledge_card(document_id or "", preference, topic, learner_profile)
     except ValueError:
         return JsonResponse({"detail": "Document not found."}, status=404)
     return JsonResponse(data)
@@ -109,11 +146,40 @@ Document:
     return JsonResponse({"topic": topic})
 
 
+@csrf_exempt
 def get_scenario(request: HttpRequest):
-    document_id: Optional[str] = request.GET.get("documentId")
+    if request.method == "POST":
+        try:
+            payload = json.loads(request.body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return HttpResponseBadRequest("Invalid JSON")
+        document_id = payload.get("documentId")
+        preference = payload.get("preference") or "classic"
+        raw_filters = payload.get("filters") or {}
+        filters = {}
+        for key, value in raw_filters.items():
+            if value is None:
+                continue
+            filters[key] = str(value)
+        description = payload.get("description")
+        learner_profile = _parse_profile(payload)
+    else:
+        document_id = request.GET.get("documentId")
+        preference = "classic"
+        filters = {}
+        description = None
+        learner_profile = None
+
     document = _get_document(document_id)
     history: List[str] = document.setdefault("question_history", [])
-    question = generate_question(document["text"], history)
+    question = generate_question(
+        document["text"],
+        history,
+        preference=preference,
+        filters=filters,
+        description=description,
+        learner_profile=learner_profile,
+    )
     history.append(question)
     return JsonResponse({"question": question})
 
@@ -147,13 +213,27 @@ def evaluate_scenario(request: HttpRequest):
     return JsonResponse({"score": score, "feedback": feedback})
 
 
+@csrf_exempt
 def get_quiz(request: HttpRequest):
-    document_id: Optional[str] = request.GET.get("documentId")
+    if request.method == "POST":
+        try:
+            payload = json.loads(request.body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return HttpResponseBadRequest("Invalid JSON")
+        document_id = payload.get("documentId")
+        topic = payload.get("topic")
+        learner_profile = _parse_profile(payload)
+    else:
+        document_id = request.GET.get("documentId")
+        topic = None
+        learner_profile = None
+
     document = _get_document(document_id)
     history: List[str] = document.setdefault("quiz_history", [])
-    quiz = _create_quiz(document["text"], history)
+    quiz = _create_quiz(document["text"], history, topic=topic, learner_profile=learner_profile)
     # Remember which document this quiz belongs to so we can log performance.
     quiz["document_id"] = document_id
+    quiz["topic"] = topic
     quiz_id = str(uuid4())
     QUIZ_STORE[quiz_id] = quiz
     # Remember this question so we don't repeat it next time.
@@ -164,6 +244,7 @@ def get_quiz(request: HttpRequest):
             "quizId": quiz_id,
             "question": quiz["question"],
             "options": quiz["options"],
+            "topic": topic,
         }
     )
 
@@ -197,6 +278,7 @@ def submit_quiz(request: HttpRequest):
                 {
                     "type": "quiz",
                     "question": quiz.get("question", ""),
+                    "topic": quiz.get("topic", ""),
                     "selected": selected,
                     "correct_answer": quiz.get("answer", ""),
                     "correct": is_correct,
@@ -339,6 +421,7 @@ def chat_with_document(request: HttpRequest):
 
     document_id = data.get("documentId")
     messages = data.get("messages", [])
+    learner_profile = _parse_profile(data)
 
     try:
         document = _get_document(document_id)
@@ -375,6 +458,8 @@ use this data to give a specific, evidence-based summary. Otherwise, keep this i
 mind as background context.
 """
 
+    profile_blob = _format_profile_blob(learner_profile)
+
     prompt = f"""
 You are a friendly, concise AI sales coach.
 
@@ -388,6 +473,8 @@ Have a conversational tone, keep answers grounded in the document when possible,
 Keep replies short and focused (2–4 sentences).
 
 {assessments_blob}
+
+{profile_blob}
 
 Here is the conversation so far:
 

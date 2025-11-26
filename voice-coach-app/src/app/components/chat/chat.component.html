@@ -1,4 +1,5 @@
-<div class="chat-container">
+<div class="chat-scale-frame">
+  <div class="chat-container">
   <div class="chat-header">
     Pitch Perfect: Sales Coach
     <div class="chat-header-actions">
@@ -95,8 +96,72 @@
                 <p class="eyebrow">{{ card.title }}</p>
                 <p>{{ card.snippet }}</p>
                 <div class="voiceover" *ngIf="card.audioUrl">
-                  <audio controls [src]="card.audioUrl"></audio>
+                  <ng-container *ngIf="ensureKnowledgeAudioId(card) as audioId">
+                    <audio
+                      class="vo-audio-hidden"
+                      [id]="audioId"
+                      [src]="card.audioUrl"
+                      (loadedmetadata)="onKnowledgeAudioLoaded(audioId, $event)"
+                      (timeupdate)="onKnowledgeAudioTime(audioId, $event)"
+                      (ended)="onKnowledgeAudioEnded(audioId)">
+                    </audio>
+                    <div class="vo-player">
+                      <div class="vo-primary">
+                        <button type="button" class="vo-play" (click)="toggleKnowledgeAudio(audioId)">
+                          <span *ngIf="!isKnowledgeAudioPlaying(audioId)">▶</span>
+                          <span *ngIf="isKnowledgeAudioPlaying(audioId)">❚❚</span>
+                        </button>
+                        <div class="vo-progress-row">
+                          <div class="vo-progress-track" (click)="seekKnowledgeAudio(audioId, $event)">
+                            <div class="vo-progress-fill" [style.width.%]="getKnowledgeProgress(audioId)"></div>
+                            <div class="vo-progress-handle" [style.left.%]="getKnowledgeProgress(audioId)"></div>
+                          </div>
+                          <span class="vo-time">{{ formatAudioTime(audioId) }}</span>
+                        </div>
+                        <div class="vo-volume">
+                          <span class="vo-volume-icon">🔊</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            [value]="getKnowledgeVolume(audioId)"
+                            (input)="setKnowledgeVolume(audioId, +$any($event.target).value)" />
+                        </div>
+                        <div class="vo-menu" [class.open]="knowledgeMenuOpenId === audioId">
+                          <button type="button" class="vo-menu-trigger" (click)="toggleKnowledgeMenu(audioId)">⋮</button>
+                          <div class="vo-menu-content" *ngIf="knowledgeMenuOpenId === audioId">
+                            <p>Playback speed</p>
+                            <div class="vo-speed-buttons">
+                              <button
+                                *ngFor="let speed of knowledgeSpeedOptions"
+                                [class.active]="getKnowledgeSpeed(audioId) === speed"
+                                (click)="setKnowledgeSpeed(audioId, speed)">
+                                {{ speed }}x
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </ng-container>
                 </div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        <ng-container *ngSwitchCase="'scenario'">
+          <div class="card-container scenario-card-container" *ngIf="msg.scenarioCard as scenario">
+            <div class="experience-card scenario-card">
+              <p class="eyebrow">Scenario card</p>
+              <p class="scenario-question">{{ scenario.question }}</p>
+              <div class="scenario-actions">
+                <button type="button" (click)="startScenarioFromCard(scenario, 'voice')">
+                  Practice with voice
+                </button>
+                <button type="button" class="ghost" (click)="startScenarioFromCard(scenario, 'text')">
+                  Type my answer
+                </button>
               </div>
             </div>
           </div>
@@ -106,6 +171,12 @@
           <div *ngIf="msg.isCard" class="card-container" [innerHTML]="msg.text"></div>
         </ng-container>
       </ng-container>
+    </div>
+
+    <div class="starter-options" *ngIf="starterOptionsVisible">
+      <button (click)="handleStarterOption('knowledge')">I’d like to understand the core concepts of this document</button>
+      <button (click)="handleStarterOption('scenario')">I’d like a practice scenario on this document</button>
+      <button (click)="handleStarterOption('quiz')">Challenge my knowledge</button>
     </div>
 
     <div class="bot typing-placeholder" *ngIf="isBotTyping">
@@ -222,10 +293,11 @@
     (onTranscriptReady)="handleVoiceResponse($event)">
   </app-voice-modal>
 
-  <div class="loading-overlay" *ngIf="loadingOverlayVisible">
-    <div class="loading-overlay-card">
-      <div class="loading-spinner"></div>
-      <p>{{ loadingOverlayText }}</p>
+    <div class="loading-overlay" *ngIf="loadingOverlayVisible">
+      <div class="loading-overlay-card">
+        <div class="loading-spinner"></div>
+        <p>{{ loadingOverlayText }}</p>
+      </div>
     </div>
   </div>
 </div>
