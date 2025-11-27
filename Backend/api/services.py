@@ -1,6 +1,7 @@
 import json
+import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 from uuid import uuid4
 
 from django.conf import settings
@@ -18,6 +19,48 @@ document_path = BASE_DIR / "knowledge" / "EchoDot.pptx"
 DOCUMENT_STORE: Dict[str, DocumentRecord] = {}
 QUIZ_STORE: Dict[str, Dict[str, Any]] = {}
 DEFAULT_DOCUMENT_ID = "default"
+
+
+class TopicIrrelevantError(Exception):
+    """Raised when a user requests a topic that the document does not cover."""
+
+
+def _extract_keywords(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    return [
+        token
+        for token in re.findall(r"[A-Za-z0-9']+", value.lower())
+        if len(token) >= 3
+    ]
+
+
+def _ensure_relevance(keywords: List[str], document_text: str) -> None:
+    if not keywords or not document_text:
+        return
+    doc_lower = document_text.lower()
+    for keyword in keywords:
+        if keyword and keyword in doc_lower:
+            return
+    raise TopicIrrelevantError("Requested topic isn't covered by this document.")
+
+
+def ensure_topic_relevance(topic: Optional[str], document_text: str) -> None:
+    """
+    Validate that at least one keyword from the topic exists in the document text.
+    """
+    keywords = _extract_keywords(topic)
+    _ensure_relevance(keywords, document_text)
+
+
+def ensure_any_relevance(values: Iterable[Optional[str]], document_text: str) -> None:
+    """
+    Validate that at least one keyword from the provided values exists in the document.
+    """
+    keywords: List[str] = []
+    for value in values:
+        keywords.extend(_extract_keywords(value))
+    _ensure_relevance(keywords, document_text)
 
 
 def _bootstrap_default_document() -> None:
@@ -283,6 +326,7 @@ def build_knowledge_card(
     preference_normalized = (preference or "pathway").lower()
 
     if preference_normalized == "topic" and topic:
+        ensure_topic_relevance(topic, doc["text"])
         return _build_topic_card(doc["text"], document_id, topic, learner_profile)
 
     if "knowledge_concepts" not in doc:

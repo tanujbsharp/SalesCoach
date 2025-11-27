@@ -755,9 +755,9 @@ export class ChatComponent {
         })
       });
       if (!res.ok) {
-        throw new Error(`Knowledge card request failed (${res.status})`);
+        throw new Error(await this.readServerError(res, 'Knowledge card request failed.'));
       }
-        const data = await res.json();
+      const data = await res.json();
       const audioPath: string = data.audioUrl || '';
       const audioUrl = audioPath
         ? audioPath.startsWith('http')
@@ -793,7 +793,9 @@ export class ChatComponent {
       this.scheduleEngagementNudge('knowledge', this.lastKnowledgeFocus);
     } catch (err) {
       console.error('Knowledge card error:', err);
-      this.addBotMessage('Sorry, I could not load the knowledge card.');
+      const message =
+        err instanceof Error ? err.message : 'Sorry, I could not load the knowledge card.';
+      this.addBotMessage(message);
     } finally {
       this.hideLoadingOverlay();
     }
@@ -816,7 +818,7 @@ export class ChatComponent {
         })
       });
       if (!res.ok) {
-        throw new Error(`Scenario request failed (${res.status})`);
+        throw new Error(await this.readServerError(res, 'Scenario request failed.'));
       }
       const data = await res.json();
       const question = (data.question as string) || '';
@@ -850,7 +852,9 @@ export class ChatComponent {
       this.scenarioRetryAttempts = 0;
     } catch (err) {
       console.error('Scenario error:', err);
-      this.addBotMessage('Sorry, I could not load a scenario right now.');
+      const message =
+        err instanceof Error ? err.message : 'Sorry, I could not load a scenario right now.';
+      this.addBotMessage(message);
     } finally {
       this.hideLoadingOverlay();
     }
@@ -1104,7 +1108,7 @@ export class ChatComponent {
           })
         });
         if (!res.ok) {
-          throw new Error(`Quiz request failed (${res.status})`);
+          throw new Error(await this.readServerError(res, 'Quiz request failed.'));
         }
         const data = await res.json();
         const questionKey = this.normalizeKey(data?.question);
@@ -1141,7 +1145,9 @@ export class ChatComponent {
       this.maybeOfferLearningRecommendation(this.currentQuizTopic);
     } catch (err) {
       console.error('Quiz error:', err);
-      this.addBotMessage('Sorry, I could not load a quiz question.');
+      const message =
+        err instanceof Error ? err.message : 'Sorry, I could not load a quiz question.';
+      this.addBotMessage(message);
     } finally {
       this.hideLoadingOverlay();
     }
@@ -2125,5 +2131,20 @@ export class ChatComponent {
       ...this.knowledgeAudioState,
       [id]: { ...existing, ...patch }
     };
+  }
+
+  private async readServerError(res: Response, fallback: string): Promise<string> {
+    try {
+      const data = await res.json();
+      if (data && typeof data.detail === 'string') {
+        return data.detail;
+      }
+      if (data && typeof data.message === 'string') {
+        return data.message;
+      }
+    } catch {
+      // Ignore JSON parsing errors and fall back to the default message.
+    }
+    return fallback;
   }
 }

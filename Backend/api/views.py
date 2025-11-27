@@ -16,10 +16,13 @@ from bedrock_client import bedrock_completion
 from .services import (
     QUIZ_STORE,
     UPLOAD_DIR,
+    TopicIrrelevantError,
     _create_quiz,
     _get_document,
     build_knowledge_card,
+    ensure_any_relevance,
     ensure_bootstrapped,
+    ensure_topic_relevance,
 )
 
 
@@ -110,6 +113,8 @@ def get_knowledge_card(request: HttpRequest):
 
     try:
         data = build_knowledge_card(document_id or "", preference, topic, learner_profile)
+    except TopicIrrelevantError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
     except ValueError:
         return JsonResponse({"detail": "Document not found."}, status=404)
     return JsonResponse(data)
@@ -170,10 +175,21 @@ def get_scenario(request: HttpRequest):
         description = None
         learner_profile = None
 
-    document = _get_document(document_id)
+    try:
+        document = _get_document(document_id)
+    except ValueError:
+        return JsonResponse({"detail": "Document not found."}, status=404)
+
+    document_text = document["text"]
+    try:
+        if description or filters:
+            ensure_any_relevance([description, *filters.values()], document_text)
+    except TopicIrrelevantError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
     history: List[str] = document.setdefault("question_history", [])
     question = generate_question(
-        document["text"],
+        document_text,
         history,
         preference=preference,
         filters=filters,
@@ -228,9 +244,20 @@ def get_quiz(request: HttpRequest):
         topic = None
         learner_profile = None
 
-    document = _get_document(document_id)
+    try:
+        document = _get_document(document_id)
+    except ValueError:
+        return JsonResponse({"detail": "Document not found."}, status=404)
+
+    document_text = document["text"]
+    try:
+        if topic:
+            ensure_topic_relevance(topic, document_text)
+    except TopicIrrelevantError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
     history: List[str] = document.setdefault("quiz_history", [])
-    quiz = _create_quiz(document["text"], history, topic=topic, learner_profile=learner_profile)
+    quiz = _create_quiz(document_text, history, topic=topic, learner_profile=learner_profile)
     # Remember which document this quiz belongs to so we can log performance.
     quiz["document_id"] = document_id
     quiz["topic"] = topic
