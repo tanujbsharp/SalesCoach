@@ -329,12 +329,7 @@ def build_knowledge_card(
         ensure_topic_relevance(topic, doc["text"])
         return _build_topic_card(doc["text"], document_id, topic, learner_profile)
 
-    if "knowledge_concepts" not in doc:
-        doc["knowledge_concepts"] = _extract_concepts(doc["text"])
-        doc["knowledge_index"] = 0
-        doc["knowledge_audio_map"] = {}
-
-    concepts: List[Dict[str, str]] = doc.get("knowledge_concepts", [])
+    concepts = _ensure_concepts(doc)
     if not concepts:
         # Extremely defensive: fall back to a simple snippet.
         snippet = _summarize_text(doc["text"], None)
@@ -385,5 +380,18 @@ def build_knowledge_card(
 def ensure_bootstrapped() -> None:
     if DEFAULT_DOCUMENT_ID not in DOCUMENT_STORE:
         _bootstrap_default_document()
+
+
+def _ensure_concepts(doc: DocumentRecord) -> List[Dict[str, str]]:
+    if "knowledge_concepts" not in doc:
+        doc["knowledge_concepts"] = _extract_concepts(doc["text"])
+        doc["knowledge_index"] = 0
+        doc["knowledge_audio_map"] = {}
+    return doc.get("knowledge_concepts", [])
+
+
+def get_knowledge_concepts(document_id: str) -> List[Dict[str, str]]:
+    doc = _get_document(document_id)
+    return _ensure_concepts(doc)
 
 

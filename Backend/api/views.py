@@ -23,6 +23,7 @@ from .services import (
     ensure_any_relevance,
     ensure_bootstrapped,
     ensure_topic_relevance,
+    get_knowledge_concepts,
 )
 
 
@@ -118,6 +119,15 @@ def get_knowledge_card(request: HttpRequest):
     except ValueError:
         return JsonResponse({"detail": "Document not found."}, status=404)
     return JsonResponse(data)
+
+
+def list_knowledge_concepts(request: HttpRequest):
+    document_id = request.GET.get("documentId")
+    try:
+        concepts = get_knowledge_concepts(document_id or "")
+    except ValueError:
+        return JsonResponse({"detail": "Document not found."}, status=404)
+    return JsonResponse({"concepts": concepts})
 
 
 def get_topic(request: HttpRequest):

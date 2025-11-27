@@ -23,6 +23,11 @@ interface KnowledgeCardPayload {
   audioId?: string;
 }
 
+interface KnowledgeConcept {
+  title?: string;
+  summary?: string;
+}
+
 interface ScenarioCardPayload {
   id: string;
   question: string;
@@ -234,7 +239,7 @@ export class ChatComponent {
     }
     this.hideStarterOptions();
     if (kind === 'knowledge') {
-      this.sendKnowledgePrimer(this.documentTopic);
+      await this.presentKnowledgeOverview();
       await this.requestKnowledgeCard('pathway');
       return;
     }
@@ -697,14 +702,79 @@ export class ChatComponent {
     return hasKeyword || wordCount >= 10;
   }
 
-  private sendKnowledgePrimer(topic?: string) {
-    const primer = this.buildKnowledgePrimerContent(topic);
+  private async presentKnowledgeOverview() {
+    if (!this.documentId) {
+      this.sendKnowledgePrimer(this.documentTopic);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${this.API_BASE}/api/knowledge-card/concepts?documentId=${this.documentId}`
+      );
+      if (!res.ok) {
+        throw new Error(await this.readServerError(res, 'Unable to load document concepts.'));
+      }
+      const data = await res.json();
+      const concepts = Array.isArray(data?.concepts)
+        ? (data.concepts as KnowledgeConcept[]).filter(
+            concept => !!(concept && (concept.title || concept.summary))
+          )
+        : [];
+      if (concepts.length) {
+        this.sendKnowledgePrimer(this.documentTopic, concepts);
+        return;
+      }
+    } catch (err) {
+      console.error('Knowledge overview error:', err);
+    }
+
+    this.sendKnowledgePrimer(this.documentTopic);
+  }
+
+  private sendKnowledgePrimer(topic?: string, concepts?: KnowledgeConcept[]) {
+    const primer = this.buildKnowledgePrimerContent(topic, concepts);
     this.addBotMessage(primer.html, primer.plain);
   }
 
-  private buildKnowledgePrimerContent(topic?: string) {
+  private buildKnowledgePrimerContent(topic?: string, concepts: KnowledgeConcept[] = []) {
     const focus = topic || this.lastKnowledgeFocus || this.documentTopic || 'this document';
     const focusLabel = this.formatTopicLabel(focus);
+    const cleanedConcepts = concepts
+      .map(concept => ({
+        title: (concept.title || '').trim(),
+        summary: (concept.summary || '').trim()
+      }))
+      .filter(concept => concept.title || concept.summary);
+    const conceptSection = cleanedConcepts.length
+      ? `
+        <section>
+          <h4>Document concepts</h4>
+          <ol class="knowledge-concept-list">
+            ${cleanedConcepts
+              .map(chunk => {
+                const title = this.escapeHtml(chunk.title || 'Concept');
+                const summary = chunk.summary
+                  ? `<p>${this.escapeHtml(chunk.summary).replace(/\n/g, '<br>')}</p>`
+                  : '';
+                return `<li><strong>${title}</strong>${summary}</li>`;
+              })
+              .join('')}
+          </ol>
+        </section>
+        <section>
+          <h4>Knowledge boost</h4>
+          <p>I’m sharing supporting knowledge cards on each concept next so you can skim the essentials.</p>
+        </section>
+      `
+      : `
+        <section>
+          <h4>Knowledge boost</h4>
+          <p>I’m sharing a supporting knowledge card on ${this.escapeHtml(
+            focusLabel
+          )} right after this so you can skim the essentials.</p>
+        </section>
+      `;
     const html = `
       <div class="knowledge-primer">
         <h3>Core concepts: ${this.escapeHtml(focusLabel)}</h3>
@@ -728,15 +798,15 @@ export class ChatComponent {
           </ul>
         </section>
 
-        <section>
-          <h4>Knowledge boost</h4>
-          <p>I’m sharing a supporting knowledge card on ${this.escapeHtml(
-            focusLabel
-          )} right after this so you can skim the essentials.</p>
-        </section>
+        ${conceptSection}
       </div>
     `;
-    const plain = `Core concepts for ${focusLabel}: frame the customer context, link ${focusLabel} to outcomes with proof, and map a clear open-guide-close talk track. Knowledge card on ${focusLabel} is on the way.`;
+    const conceptNames = cleanedConcepts.map(concept => concept.title).filter(Boolean);
+    const plain = cleanedConcepts.length
+      ? `Core concepts for ${focusLabel}: ${conceptNames.join(
+          ', '
+        )}. I’ll send a knowledge card for each concept next.`
+      : `Core concepts for ${focusLabel}: frame the customer context, link ${focusLabel} to outcomes with proof, and map a clear open-guide-close talk track. Knowledge card on ${focusLabel} is on the way.`;
     return { html, plain };
   }
 

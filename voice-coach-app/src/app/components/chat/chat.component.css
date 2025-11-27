@@ -518,6 +518,21 @@
   padding-left: 1.25rem;
 }
 
+.knowledge-concept-list {
+  padding-left: 1.2rem;
+  margin: 0.35rem 0;
+}
+
+.knowledge-concept-list li {
+  margin-bottom: 0.45rem;
+}
+
+.knowledge-concept-list p {
+  margin: 0.2rem 0 0;
+  color: #4338ca;
+  font-size: 0.95rem;
+}
+
 .knowledge-primer-intro {
   margin-bottom: 0.6rem;
   font-weight: 500;

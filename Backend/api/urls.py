@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path("documents", views.upload_document, name="upload_document"),
     path("knowledge-card", views.get_knowledge_card, name="knowledge_card"),
+    path("knowledge-card/concepts", views.list_knowledge_concepts, name="knowledge_concepts"),
     path("topic", views.get_topic, name="topic"),
     path("scenario", views.get_scenario, name="scenario"),
     path("scenario/answer", views.evaluate_scenario, name="scenario_answer"),
