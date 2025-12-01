@@ -16,6 +16,7 @@ urlpatterns = [
     path("text", views.handle_text, name="text"),
     path("audio", views.handle_audio, name="audio"),
     path("rubric", views.rubric_handler, name="rubric"),
+    path("admin/config", views.admin_config_handler, name="admin_config"),
 ]
 
 

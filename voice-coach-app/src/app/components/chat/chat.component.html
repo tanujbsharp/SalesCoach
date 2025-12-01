@@ -9,9 +9,11 @@
 
   </div>
 
-  <div class="chat-messages" #messagesContainer>
-    <div *ngFor="let msg of messages" [ngClass]="msg.from">
-      <ng-container [ngSwitch]="msg.cardType">
+  <div class="chat-main">
+    <div class="chat-thread">
+      <div class="chat-messages" #messagesContainer>
+        <div *ngFor="let msg of messages" [ngClass]="msg.from">
+          <ng-container [ngSwitch]="msg.cardType">
         <ng-container *ngSwitchCase="'quizHistory'">
           <div class="card-container quiz-history-container" *ngIf="msg.quizHistory as history">
             <div class="experience-card quiz-card">
@@ -153,8 +155,12 @@
         <ng-container *ngSwitchCase="'scenario'">
           <div class="card-container scenario-card-container" *ngIf="msg.scenarioCard as scenario">
             <div class="experience-card scenario-card">
-              <p class="eyebrow">Scenario card</p>
+              <p class="eyebrow">
+                Scenario card
+                <span class="mandatory-pill" *ngIf="scenario.mandatory">(mandatory)</span>
+              </p>
               <p class="scenario-question">{{ scenario.question }}</p>
+              <p class="scenario-summary" *ngIf="scenario.summary">{{ scenario.summary }}</p>
               <div class="scenario-actions">
                 <button type="button" (click)="startScenarioFromCard(scenario, 'voice')">
                   Practice with voice
@@ -171,35 +177,65 @@
           <div *ngIf="msg.isCard" class="card-container" [innerHTML]="msg.text"></div>
         </ng-container>
       </ng-container>
-    </div>
+        </div>
 
-    <div class="starter-options" *ngIf="starterOptionsVisible">
-      <button (click)="handleStarterOption('knowledge')">I’d like to understand the core concepts of this document</button>
-      <button (click)="handleStarterOption('scenario')">I’d like a practice scenario on this document</button>
-      <button (click)="handleStarterOption('quiz')">Challenge my knowledge</button>
-    </div>
+        <div class="starter-options" *ngIf="starterOptionsVisible">
+          <button (click)="handleStarterOption('knowledge')">I’d like to understand the core concepts of this document</button>
+          <button (click)="handleStarterOption('scenario')">I’d like a practice scenario on this document</button>
+          <button (click)="handleStarterOption('quiz')">Challenge my knowledge</button>
+        </div>
 
-    <div class="bot typing-placeholder" *ngIf="isBotTyping">
-      <div class="bubble typing-bubble">
-        <div class="typing-circle"></div>
+        <div class="bot typing-placeholder" *ngIf="isBotTyping">
+          <div class="bubble typing-bubble">
+            <div class="typing-circle"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-actions" *ngIf="showActionButtons">
+        <button (click)="triggerKnowledgeCard()">Knowledge Card</button>
+        <button (click)="triggerScenarioCard()">Scenario Card</button>
+        <button (click)="triggerQuizCard()">Quiz Card</button>
+      </div>
+
+      <div class="chat-footer">
+        <input
+          [(ngModel)]="userText"
+          (keydown.enter)="submitText()"
+          placeholder="Type your answer..."
+        />
+        <button (click)="submitText()">Confirm</button>
+        <button (click)="openVoiceModal()">🎤</button>
       </div>
     </div>
-  </div>
 
-  <div class="quick-actions" *ngIf="showActionButtons">
-    <button (click)="triggerKnowledgeCard()">Knowledge Card</button>
-    <button (click)="triggerScenarioCard()">Scenario Card</button>
-    <button (click)="triggerQuizCard()">Quiz Card</button>
-  </div>
+    <div class="progress-divider" aria-hidden="true"></div>
 
-  <div class="chat-footer">
-    <input
-      [(ngModel)]="userText"
-      (keydown.enter)="submitText()"
-      placeholder="Type your answer..."
-    />
-    <button (click)="submitText()">Confirm</button>
-    <button (click)="openVoiceModal()">🎤</button>
+    <aside class="progress-sidebar">
+      <div class="progress-card">
+        <div class="progress-card-header">
+          <p class="eyebrow">Training progress</p>
+          <span class="status-pill" [class.complete]="trainingComplete">
+            {{ trainingComplete ? 'Complete' : 'In progress' }}
+          </span>
+        </div>
+        <p class="progress-description">
+          Complete the required cards to finish this training block.
+        </p>
+        <div class="progress-item-list">
+          <div class="progress-item" *ngFor="let item of progressItems">
+            <div class="progress-chart" [style.background]="getProgressGradient(item.key)">
+              <span>{{ getProgressCopy(item.key) }}</span>
+            </div>
+            <div class="progress-copy">
+              <p class="progress-label">{{ item.label }}</p>
+              <p class="progress-helper">{{ item.helper }}</p>
+              <p class="progress-target">Min {{ getMinimumLabel(item.key) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
   </div>
 
   <!-- Scenario modal popup (reusing previous styling/colors) -->

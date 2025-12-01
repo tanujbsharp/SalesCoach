@@ -39,6 +39,149 @@
   gap: 0.5rem;
 }
 
+.chat-main {
+  display: flex;
+  flex: 1;
+  padding: 0 0 0rem 0rem;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.progress-divider {
+  width: 0px;
+  background:
+    linear-gradient(180deg, rgba(226, 232, 240, 0) 0%, rgba(226, 232, 240, 0.65) 45%, rgba(226, 232, 240, 0.9) 50%, rgba(226, 232, 240, 0.65) 55%, rgba(226, 232, 240, 0) 100%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.7));
+  border-radius: 4px;
+}
+
+.chat-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.progress-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  border-left: 2px solid rgba(226, 232, 240, 0.9);
+  padding-left: 1.25rem;
+  margin-left: 1rem;
+  box-shadow: -18px 0 35px -25px rgba(15, 23, 42, 0.35);
+}
+
+.progress-card {
+  background: #ffffff;
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  box-shadow: 0 35px 60px -40px rgba(15, 23, 42, 0.35);
+  border: 1px solid #e4e7ec;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  height: fit-content;
+}
+
+.progress-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progress-description {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.status-pill {
+  border-radius: 999px;
+  padding: 0.25rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.status-pill.complete {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.progress-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.progress-item {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.progress-chart {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: conic-gradient(#0ea5e9 0%, #e2e8f0 0% 100%);
+  position: relative;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #0f172a;
+}
+
+.progress-chart::after {
+  content: '';
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.progress-chart span {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.progress-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.progress-label {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.progress-helper,
+.progress-target {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.progress-target {
+  font-weight: 600;
+  color: #0ea5e9;
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -46,6 +189,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-height: 0;
 }
 
 .quick-actions {
@@ -286,9 +430,13 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 1rem;
+  padding: 1rem 1.5rem;
   background: #f8fafc;
   border-top: 1px solid #e4e7ec;
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
 }
 
 .chat-footer input {
@@ -398,11 +546,25 @@
   color: #0c4a6e;
 }
 
+.mandatory-pill {
+  margin-left: 0.35rem;
+  font-size: 0.85rem;
+  color: #0ea5e9;
+  font-weight: 600;
+}
+
 .scenario-question {
   font-size: 1.15rem;
   font-weight: 600;
   line-height: 1.4;
   margin: 0 0 0.6rem 0;
+}
+
+.scenario-summary {
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  color: #0f172a;
+  line-height: 1.4;
 }
 
 .scenario-actions {
@@ -1120,4 +1282,24 @@ button.ghost:hover {
   background: #f0f3ff;
   border-color: #6b7ff9;
   transform: translateY(-1px);
+}
+
+@media (max-width: 1100px) {
+  .chat-main {
+    flex-direction: column;
+    padding: 0 1rem 1.5rem;
+  }
+
+  .progress-divider {
+    display: none;
+  }
+
+  .progress-sidebar {
+    width: 100%;
+    border-left: none;
+    padding-left: 0;
+    margin-left: 0;
+    box-shadow: none;
+    justify-content: stretch;
+  }
 }

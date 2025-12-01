@@ -1,7 +1,8 @@
 import json
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 from uuid import uuid4
 
 from django.conf import settings
@@ -35,12 +36,39 @@ def _extract_keywords(value: Optional[str]) -> List[str]:
     ]
 
 
+def _tokenize_text(value: str) -> List[str]:
+    return [token for token in re.findall(r"[A-Za-z0-9']+", value.lower()) if token]
+
+
+def _fuzzy_token_match(tokens: Sequence[str], doc_tokens: Sequence[str], threshold: float = 0.78) -> bool:
+    if not tokens or not doc_tokens:
+        return False
+    doc_set: Set[str] = set(doc_tokens)
+    for token in tokens:
+        if token in doc_set:
+            return True
+        for doc_token in doc_set:
+            if SequenceMatcher(None, token, doc_token).ratio() >= threshold:
+                return True
+    return False
+
+
 def _ensure_relevance(keywords: List[str], document_text: str) -> None:
     if not keywords or not document_text:
         return
     doc_lower = document_text.lower()
+    doc_tokens = _tokenize_text(doc_lower)
+    doc_token_set = set(doc_tokens)
     for keyword in keywords:
-        if keyword and keyword in doc_lower:
+        if not keyword:
+            continue
+        lowered = keyword.lower()
+        if lowered in doc_lower:
+            return
+        kw_tokens = _tokenize_text(lowered)
+        if any(token in doc_token_set for token in kw_tokens):
+            return
+        if _fuzzy_token_match(kw_tokens, doc_tokens):
             return
     raise TopicIrrelevantError("Requested topic isn't covered by this document.")
 

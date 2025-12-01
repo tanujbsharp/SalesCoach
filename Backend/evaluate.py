@@ -32,10 +32,10 @@ def evaluate_response(transcript: str, context: str):
     rubric_html = "\n".join([f"<tr><td>{r['name']}</td><td>X</td><td>...</td></tr>" for r in rubric])
 
     scoring_guardrails = """
-Important grading guardrails:
-- Only award an Accuracy score above 5 if the response explicitly references facts from the document (e.g., product specs, feature names, quantitative improvements). If it stays generic, lacks detail, or invents information, Accuracy must be 0–4.
-- If the learner skips key document facts entirely, Accuracy should be 2 or below even if there are no blatant errors.
-- When in doubt, err on the harsher side so scores reflect real readiness.
+Important grading guardrails (lightly relaxed):
+- Prioritise factual alignment with the document, but give partial credit when the response is mostly correct with only minor gaps or slight wording differences.
+- Scores of 7–8 are acceptable if the answer hits the right concepts even without quoting exact specs, as long as nothing contradicts the document.
+- Reserve very low scores (0–3) for clearly incorrect, invented, or off-topic content. When in doubt, lean slightly generous to keep coaching encouraging.
 """.strip()
 
     prompt = f"""

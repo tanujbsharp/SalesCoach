@@ -38,4 +38,165 @@
   </section>
 
   <!-- Multi-card journey UI removed: document upload now leads to a dedicated chat page. -->
+
+  <section class="admin-panel">
+    <header class="admin-panel-header">
+      <div>
+        <p class="eyebrow">Admin setup</p>
+        <h2>Mandatory scenarios & completion rules</h2>
+        <p class="subtitle">Define the first scenarios reps must run and the minimum cards required to finish training.</p>
+      </div>
+      <div class="admin-header-actions">
+        <button type="button" class="ghost" (click)="loadSavedTrainingTemplate()">Load saved training</button>
+        <button type="button" class="ghost" (click)="loadAdminConfig()" [disabled]="adminConfigLoading">
+          {{ adminConfigLoading ? 'Refreshing…' : 'Refresh setup' }}
+        </button>
+        <button type="button" class="ghost" routerLink="/instructions">Rubric</button>
+      </div>
+    </header>
+
+    <ng-container *ngIf="!adminConfigLoading; else adminLoading">
+      <p class="notice success" *ngIf="adminConfigNotice">{{ adminConfigNotice }}</p>
+      <p class="notice error" *ngIf="adminConfigError">{{ adminConfigError }}</p>
+
+      <div class="scenario-editor-list">
+        <div
+          class="scenario-editor-card"
+          *ngFor="let scenario of adminConfig.mandatoryScenarios; let i = index; trackBy: trackScenario">
+          <div class="scenario-editor-header">
+            <h3>Scenario {{ i + 1 }}</h3>
+            <div class="scenario-editor-actions">
+              <button type="button" class="icon-button" (click)="moveMandatoryScenario(i, 'up')" [disabled]="i === 0">↑</button>
+              <button
+                type="button"
+                class="icon-button"
+                (click)="moveMandatoryScenario(i, 'down')"
+                [disabled]="i === adminConfig.mandatoryScenarios.length - 1">
+                ↓
+              </button>
+              <button type="button" class="icon-button danger" (click)="removeMandatoryScenario(i)">✕</button>
+            </div>
+          </div>
+
+          <label>
+            <span>Scenario title</span>
+            <input
+              type="text"
+              [(ngModel)]="scenario.title"
+              (ngModelChange)="markAdminConfigDirty()"
+              placeholder="Late delivery escalation" />
+          </label>
+
+          <label>
+            <span>Scenario question *</span>
+            <textarea
+              rows="3"
+              [(ngModel)]="scenario.question"
+              (ngModelChange)="markAdminConfigDirty()"
+              placeholder="Describe the customer ask in detail..."></textarea>
+          </label>
+
+          <label>
+            <span>Summary / card subtitle</span>
+            <input
+              type="text"
+              [(ngModel)]="scenario.summary"
+              (ngModelChange)="markAdminConfigDirty()"
+              placeholder="Customer upset about repeated delays." />
+          </label>
+
+          <div class="scenario-filters-grid">
+            <label>
+              <span>Intent</span>
+              <input
+                type="text"
+                [(ngModel)]="ensureScenarioFilters(scenario).intent"
+                (ngModelChange)="markAdminConfigDirty()"
+                placeholder="Handle escalations" />
+            </label>
+            <label>
+              <span>Industry</span>
+              <input
+                type="text"
+                [(ngModel)]="ensureScenarioFilters(scenario).industry"
+                (ngModelChange)="markAdminConfigDirty()"
+                placeholder="E-commerce" />
+            </label>
+            <label>
+              <span>Audience</span>
+              <input
+                type="text"
+                [(ngModel)]="ensureScenarioFilters(scenario).audience"
+                (ngModelChange)="markAdminConfigDirty()"
+                placeholder="Operations lead" />
+            </label>
+            <label>
+              <span>Situation</span>
+              <input
+                type="text"
+                [(ngModel)]="ensureScenarioFilters(scenario).situation"
+                (ngModelChange)="markAdminConfigDirty()"
+                placeholder="Multiple missed ship dates" />
+            </label>
+            <label>
+              <span>Objection</span>
+              <input
+                type="text"
+                [(ngModel)]="ensureScenarioFilters(scenario).objection"
+                (ngModelChange)="markAdminConfigDirty()"
+                placeholder="Considering canceling" />
+            </label>
+          </div>
+        </div>
+
+        <button type="button" class="ghost add-scenario-button" (click)="addMandatoryScenario()">
+          + Add another scenario
+        </button>
+      </div>
+
+      <div class="minimum-grid">
+        <label>
+          <span>Minimum knowledge cards</span>
+          <input
+            type="number"
+            min="0"
+            [(ngModel)]="adminConfig.minimums.knowledge"
+            (ngModelChange)="markAdminConfigDirty()"
+            placeholder="0" />
+        </label>
+        <label>
+          <span>Minimum scenario cards</span>
+          <input
+            type="number"
+            min="0"
+            [(ngModel)]="adminConfig.minimums.scenario"
+            (ngModelChange)="markAdminConfigDirty()"
+            placeholder="0" />
+        </label>
+        <label>
+          <span>Minimum quiz cards</span>
+          <input
+            type="number"
+            min="0"
+            [(ngModel)]="adminConfig.minimums.quiz"
+            (ngModelChange)="markAdminConfigDirty()"
+            placeholder="0" />
+        </label>
+      </div>
+
+      <div class="admin-actions">
+        <button
+          type="button"
+          class="primary"
+          (click)="saveAdminSetup()"
+          [disabled]="adminConfigSaving">
+          {{ adminConfigSaving ? 'Saving...' : 'Save admin setup' }}
+        </button>
+      </div>
+    </ng-container>
+
+    <ng-template #adminLoading>
+      <div class="admin-loading">Loading admin configuration…</div>
+    </ng-template>
+  </section>
 </div>

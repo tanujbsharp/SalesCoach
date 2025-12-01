@@ -13,6 +13,7 @@ from transcribe import transcribe_audio
 
 from bedrock_client import bedrock_completion
 
+from .admin_config import load_admin_config, save_admin_config
 from .services import (
     QUIZ_STORE,
     UPLOAD_DIR,
@@ -442,6 +443,23 @@ def rubric_handler(request: HttpRequest):
         except Exception as e:  # pragma: no cover - file errors
             print("❌ Failed to save rubric:", e)
             return JsonResponse({"message": "Error saving rubric"})
+
+    return HttpResponseBadRequest("Invalid method")
+
+
+@csrf_exempt
+def admin_config_handler(request: HttpRequest):
+    if request.method == "GET":
+        config = load_admin_config()
+        return JsonResponse(config)
+
+    if request.method == "POST":
+        try:
+            payload = json.loads(request.body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return HttpResponseBadRequest("Invalid JSON")
+        config = save_admin_config(payload)
+        return JsonResponse(config)
 
     return HttpResponseBadRequest("Invalid method")
 

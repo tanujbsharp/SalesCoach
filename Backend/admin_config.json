@@ -1,0 +1,51 @@
+{
+  "mandatoryScenarios": [
+    {
+      "id": "8c9a7e24-e9a2-4466-869c-634572b849aa",
+      "title": "Video quality issues during important client call",
+      "question": "A customer using a ThinkPad with Aura Edition reports that during an important client meeting, the video quality became grainy and inconsistent. They specifically mention that features like background blur and the low-light enhancer did not activate as expected. The customer is upset because they bought the model specifically for smarter meetings and now feels the Aura features are unreliable. Describe how you would acknowledge the issue, walk them through troubleshooting, and reinforce the value of Aura\u2019s AI-powered collaboration features.",
+      "summary": "Customer upset that Aura video enhancements failed mid-call.",
+      "preference": "classic",
+      "filters": {
+        "intent": "E-commerce / Electronics",
+        "industry": "E-commerce / Electronics",
+        "situation": "Collaboration mode features not working",
+        "objection": "Doubting product capability",
+        "audience": "Operations lead / Tech support lead"
+      }
+    },
+    {
+      "id": "47682eac-b780-46e7-92f4-2fe2a9808f23",
+      "title": "Smart Share sync failure during a presentation",
+      "question": "A customer preparing for a board meeting attempted to use Smart Share to transfer content from their phone to their ThinkPad, but the feature kept failing to detect the mobile device. They are frustrated because Smart Share is highlighted as a premium seamless collaboration feature and they expected it to \u201cjust work.\u201d They are questioning whether the laptop is worth the premium price. Explain how you would de-escalate the situation, diagnose the Smart Share sync issue, and reassure them about the value of the Aura Edition\u2019s cross-device collaboration.",
+      "summary": "User unable to sync devices using Smart Share.",
+      "preference": "classic",
+      "filters": {
+        "intent": "Handle escalations",
+        "industry": "E-commerce / Electronics",
+        "situation": "Smart Share device pairing errors",
+        "objection": "Complaining about premium pricing vs promised features",
+        "audience": "Operations lead / Product support"
+      }
+    },
+    {
+      "id": "64116b79-3721-43ab-9ce6-92b60318a7cc",
+      "title": "Unhappy with Smart Care support turnaround",
+      "question": "A customer contacted Smart Care for urgent troubleshooting but feels the support response was too slow. They believed the Aura Edition offered \u201cexpert support anytime,\u201d and now feel misled. They are considering returning the laptop, saying the experience does not match the promise of premium, proactive assistance. Describe how you would address the expectation gap, clarify how Smart Care works, provide immediate support, and retain the customer.",
+      "summary": "Customer feels Smart Care did not meet \u201cexpert support anytime\u201d promise.",
+      "preference": "classic",
+      "filters": {
+        "intent": "Handle escalations",
+        "industry": "E-commerce / Electronics",
+        "situation": "Delayed support response",
+        "objection": "Considering return due to support disappointment",
+        "audience": "Operations lead / Support lead"
+      }
+    }
+  ],
+  "minimums": {
+    "knowledge": 1,
+    "quiz": 1,
+    "scenario": 0
+  }
+}

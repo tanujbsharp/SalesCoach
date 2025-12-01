@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { DocumentMetadata, DocumentStateService } from '../../services/document-state.service';
-import { VoiceModalComponent } from '../voice-modal/voice-modal.component';
+import { AdminConfigService } from '../../services/admin-config.service';
+import { AdminScenarioConfig, AdminTrainingConfig, EMPTY_ADMIN_CONFIG, ScenarioFlowData } from '../../types/training-config';
 
 type ExperienceStep = 'knowledge' | 'scenario' | 'quiz';
 type AnswerMode = 'voice' | 'text';
@@ -17,12 +18,13 @@ interface ScenarioResult {
 @Component({
   selector: 'app-document-upload',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, VoiceModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './document-upload.component.html',
   styleUrls: ['./document-upload.component.css']
 })
-export class DocumentUploadComponent {
+export class DocumentUploadComponent implements OnInit {
   readonly API_BASE = 'http://127.0.0.1:8000';
+  private readonly TRAINING_TEMPLATE_KEY = 'adminTrainingTemplate';
 
   selectedFile?: File;
   isUploading = false;
@@ -53,13 +55,32 @@ export class DocumentUploadComponent {
   quizResult?: { correct: boolean; explanation: string; answer: string };
   quizSubmitting = false;
   quizSelection?: string;
+  adminConfig: AdminTrainingConfig = {
+    ...EMPTY_ADMIN_CONFIG,
+    mandatoryScenarios: [],
+    minimums: { ...EMPTY_ADMIN_CONFIG.minimums }
+  };
+  adminConfigLoading = false;
+  adminConfigSaving = false;
+  adminConfigError = '';
+  adminConfigNotice = '';
+  adminConfigSaved = true;
+  pendingPracticeNavigation = false;
 
-  constructor(private documentState: DocumentStateService, private router: Router) {
+  constructor(
+    private documentState: DocumentStateService,
+    private router: Router,
+    private adminConfigService: AdminConfigService
+  ) {
     const meta = this.documentState.getMetadata();
     if (meta) {
       this.documentId = meta.id;
       this.documentMeta = meta;
     }
+  }
+
+  ngOnInit() {
+    this.loadAdminConfig();
   }
 
   onFileSelected(event: Event) {
@@ -99,8 +120,10 @@ export class DocumentUploadComponent {
       this.documentId = meta.id;
       this.documentMeta = meta;
       this.documentState.setDocument(meta);
-      // After upload, go straight to the dedicated chat experience.
-      this.router.navigate(['/practice']);
+      this.pendingPracticeNavigation = true;
+      this.adminConfigSaved = false;
+      this.adminConfigError =
+        'Review & save the admin scenario setup to unlock practice for this document.';
     } catch (err: any) {
       this.errorMessage = err?.message || 'Upload failed.';
     } finally {
@@ -358,5 +381,201 @@ export class DocumentUploadComponent {
     }
 
     return 0;
+  }
+
+  trackScenario(index: number, scenario: AdminScenarioConfig) {
+    return scenario.id || index;
+  }
+
+  addMandatoryScenario() {
+    this.adminConfig.mandatoryScenarios.push(this.createScenarioDraft());
+    this.markAdminConfigDirty();
+  }
+
+  removeMandatoryScenario(index: number) {
+    this.adminConfig.mandatoryScenarios.splice(index, 1);
+    this.markAdminConfigDirty();
+  }
+
+  moveMandatoryScenario(index: number, direction: 'up' | 'down') {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= this.adminConfig.mandatoryScenarios.length) {
+      return;
+    }
+    const scenarios = this.adminConfig.mandatoryScenarios;
+    [scenarios[index], scenarios[targetIndex]] = [scenarios[targetIndex], scenarios[index]];
+    this.markAdminConfigDirty();
+  }
+
+  async loadAdminConfig() {
+    this.adminConfigLoading = true;
+    this.clearAdminMessages();
+    try {
+      const config = await this.adminConfigService.getConfig();
+      this.adminConfig = this.cloneAdminConfig(config);
+      this.adminConfigSaved = false;
+      this.adminConfigNotice = 'Save your admin setup to unlock practice.';
+    } catch (err) {
+      console.error('Failed to load admin config:', err);
+      this.adminConfigError = 'Unable to load admin setup from the server.';
+    } finally {
+      this.adminConfigLoading = false;
+    }
+  }
+
+  async saveAdminSetup() {
+    if (this.adminConfigSaving) return;
+    this.clearAdminMessages();
+    const hasEmptyQuestion = this.adminConfig.mandatoryScenarios.some(s => !s.question.trim());
+    if (hasEmptyQuestion) {
+      this.adminConfigError = 'Each mandatory scenario needs a question before saving.';
+      return;
+    }
+    this.adminConfigSaving = true;
+    try {
+      const payload: AdminTrainingConfig = {
+        mandatoryScenarios: this.adminConfig.mandatoryScenarios.map(scenario => ({
+          ...scenario,
+          title: scenario.title?.trim() || '',
+          summary: scenario.summary?.trim() || '',
+          question: scenario.question.trim(),
+          preference: scenario.preference === 'tailored' ? 'tailored' : 'classic',
+          filters: this.sanitizeFilters(scenario.filters)
+        })),
+        minimums: {
+          knowledge: this.normalizeMinimum(this.adminConfig.minimums.knowledge),
+          quiz: this.normalizeMinimum(this.adminConfig.minimums.quiz),
+          scenario: this.normalizeMinimum(this.adminConfig.minimums.scenario)
+        }
+      };
+      const saved = await this.adminConfigService.saveConfig(payload);
+      this.adminConfig = this.cloneAdminConfig(saved);
+      this.adminConfigNotice = 'Admin setup saved successfully.';
+      this.adminConfigSaved = true;
+      this.adminConfigError = '';
+      this.persistTrainingTemplate(saved);
+      if (this.pendingPracticeNavigation && this.documentId) {
+        this.pendingPracticeNavigation = false;
+        this.navigateToPractice();
+      }
+    } catch (err) {
+      console.error('Failed to save admin config:', err);
+      this.adminConfigError = err instanceof Error ? err.message : 'Unable to save admin setup.';
+    } finally {
+      this.adminConfigSaving = false;
+    }
+  }
+
+  private clearAdminMessages() {
+    this.adminConfigError = '';
+    this.adminConfigNotice = '';
+  }
+
+  private cloneAdminConfig(config: AdminTrainingConfig): AdminTrainingConfig {
+    return {
+      mandatoryScenarios: (config.mandatoryScenarios || []).map(scenario => ({
+        ...scenario,
+        title: scenario.title || '',
+        summary: scenario.summary || '',
+        question: scenario.question || '',
+        preference: scenario.preference === 'tailored' ? 'tailored' : 'classic',
+        filters: { ...(scenario.filters || {}) } as ScenarioFlowData
+      })),
+      minimums: {
+        knowledge: this.normalizeMinimum(config.minimums?.knowledge),
+        quiz: this.normalizeMinimum(config.minimums?.quiz),
+        scenario: this.normalizeMinimum(config.minimums?.scenario)
+      }
+    };
+  }
+
+  private createScenarioDraft(): AdminScenarioConfig {
+    return {
+      id: this.generateScenarioId(),
+      title: '',
+      question: '',
+      summary: '',
+      preference: 'classic',
+      filters: {} as ScenarioFlowData
+    };
+  }
+
+  private generateScenarioId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return `scenario-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  private sanitizeFilters(filters?: ScenarioFlowData) {
+    if (!filters) return undefined;
+    const cleaned: ScenarioFlowData = {};
+    (Object.keys(filters) as (keyof ScenarioFlowData)[]).forEach(key => {
+      const value = filters[key];
+      if (!value) return;
+      const trimmed = value.toString().trim();
+      if (trimmed) {
+        cleaned[key] = trimmed;
+      }
+    });
+    return Object.keys(cleaned).length ? cleaned : undefined;
+  }
+
+  private normalizeMinimum(value: number | string | undefined) {
+    const parsed = Number(value);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      return 0;
+    }
+    return Math.floor(parsed);
+  }
+
+  ensureScenarioFilters(scenario: AdminScenarioConfig): ScenarioFlowData {
+    if (!scenario.filters) {
+      scenario.filters = {} as ScenarioFlowData;
+    }
+    return scenario.filters;
+  }
+
+  private navigateToPractice() {
+    this.router.navigate(['/practice']);
+  }
+
+  markAdminConfigDirty() {
+    if (this.adminConfigLoading) {
+      return;
+    }
+    this.adminConfigSaved = false;
+    if (!this.adminConfigSaving) {
+      this.adminConfigNotice = '';
+    }
+  }
+
+  loadSavedTrainingTemplate() {
+    const template = this.retrieveTrainingTemplate();
+    if (!template) {
+      this.adminConfigError = 'No saved training template found.';
+      return;
+    }
+    this.adminConfig = this.cloneAdminConfig(template);
+    this.markAdminConfigDirty();
+    this.adminConfigNotice = 'Loaded saved training template. Save it to apply to this training.';
+  }
+
+  private persistTrainingTemplate(config: AdminTrainingConfig) {
+    try {
+      localStorage.setItem(this.TRAINING_TEMPLATE_KEY, JSON.stringify(config));
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
+  private retrieveTrainingTemplate(): AdminTrainingConfig | undefined {
+    try {
+      const raw = localStorage.getItem(this.TRAINING_TEMPLATE_KEY);
+      if (!raw) return undefined;
+      return JSON.parse(raw) as AdminTrainingConfig;
+    } catch {
+      return undefined;
+    }
   }
 }

@@ -4,6 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { VoiceModalComponent } from '../voice-modal/voice-modal.component';
 import { Router } from '@angular/router';
 import { DocumentStateService } from '../../services/document-state.service';
+import { AdminConfigService } from '../../services/admin-config.service';
+import {
+  AdminScenarioConfig,
+  AdminTrainingConfig,
+  ScenarioFlowData,
+  ScenarioPreference
+} from '../../types/training-config';
 
 type QuizOption = { label: string; text: string };
 
@@ -34,6 +41,8 @@ interface ScenarioCardPayload {
   summary?: string;
   preference: ScenarioPreference;
   filters?: ScenarioFlowData;
+  mandatory?: boolean;
+  mandatoryScenarioId?: string;
 }
 
 interface ScenarioRemediationState {
@@ -64,7 +73,6 @@ type ChatMessage = {
 };
 
 type KnowledgePreference = 'pathway' | 'topic';
-type ScenarioPreference = 'classic' | 'tailored';
 type QuizPreference = 'arbitrary' | 'topic';
 
 interface LearnerProfile {
@@ -72,15 +80,6 @@ interface LearnerProfile {
   weaknesses: string[];
   knowledgeGaps: string[];
   notes: string[];
-}
-
-interface ScenarioFlowData {
-  intent?: string;
-  industry?: string;
-  situation?: string;
-  objection?: string;
-  audience?: string;
-  summary?: string;
 }
 
 type GuidedFlow = {
@@ -102,6 +101,15 @@ interface SuggestionPrompt {
   reason: 'learning' | 'weakness';
   topic?: string;
   variant?: 'summary' | 'default';
+}
+
+type ProgressKey = 'knowledge' | 'quiz' | 'scenario';
+type ProgressMap = Record<ProgressKey, number>;
+
+interface ProgressItemDescriptor {
+  key: ProgressKey;
+  label: string;
+  helper: string;
 }
 
 @Component({
@@ -182,20 +190,64 @@ export class ChatComponent {
   private readonly scenarioOutlineTtlMs = 5 * 60 * 1000;
   private awaitingTableFormat = false;
   starterOptionsVisible = false;
+  trainingMinimums: ProgressMap = { knowledge: 0, quiz: 0, scenario: 0 };
+  trainingProgress: ProgressMap = { knowledge: 0, quiz: 0, scenario: 0 };
+  progressItems: ProgressItemDescriptor[] = [
+    { key: 'knowledge', label: 'Knowledge cards', helper: 'Review the fundamentals first.' },
+    { key: 'scenario', label: 'Scenario cards', helper: 'Practice live conversations.' },
+    { key: 'quiz', label: 'Quiz cards', helper: 'Validate what you retained.' }
+  ];
+  trainingComplete = false;
+  private adminConfig?: AdminTrainingConfig;
+  private mandatoryScenarioQueue: AdminScenarioConfig[] = [];
+  private completedMandatoryScenarioIds = new Set<string>();
+  private activeMandatoryScenarioId?: string;
+  private quizCompletionLogged = false;
+  private trainingCompletionAnnounced = false;
+  private lastMandatoryReminder = 0;
+  private mandatoryFlowActivated = false;
+  private mandatoryIntroShown = false;
+  private pendingKnowledgeCompletions = new Set<string>();
 
   readonly API_BASE = 'http://127.0.0.1:8000';
 
-  constructor(private router: Router, private documentState: DocumentStateService) {
+  constructor(
+    private router: Router,
+    private documentState: DocumentStateService,
+    private adminConfigService: AdminConfigService
+  ) {
     const docId = this.documentId;
     if (!docId) {
       this.router.navigate(['/']);
       return;
     }
     this.seedInitialMessages();
+    this.loadAdminConfig();
   }
 
   private get documentId() {
     return this.documentState.getDocumentId();
+  }
+
+  private async loadAdminConfig() {
+    try {
+      const config = await this.adminConfigService.getConfig();
+      this.adminConfig = config;
+      this.trainingMinimums = { ...config.minimums };
+      this.trainingComplete = this.evaluateTrainingCompletion();
+      this.trainingCompletionAnnounced = this.trainingComplete;
+      this.mandatoryScenarioQueue = (config.mandatoryScenarios || []).map(scenario => ({
+        ...scenario,
+        filters: scenario.filters ? { ...scenario.filters } : undefined
+      }));
+      this.completedMandatoryScenarioIds.clear();
+      this.activeMandatoryScenarioId = undefined;
+      this.mandatoryFlowActivated = false;
+      this.mandatoryIntroShown = false;
+      this.lastMandatoryReminder = 0;
+    } catch (err) {
+      console.error('Failed to load admin setup:', err);
+    }
   }
 
   private async seedInitialMessages() {
@@ -544,6 +596,9 @@ export class ChatComponent {
   triggerScenarioCard() {
     this.hideStarterOptions();
     if (!this.documentId) return;
+    if (this.enforceMandatoryScenarioGate('button')) {
+      return;
+    }
     if (this.pendingFlow) {
       this.addBotMessage("I'm already working through another request—let's wrap that before starting a new scenario.");
       return;
@@ -810,9 +865,14 @@ export class ChatComponent {
     return { html, plain };
   }
 
-  private async requestKnowledgeCard(preference: KnowledgePreference, topic?: string) {
+  private async requestKnowledgeCard(
+    preference: KnowledgePreference,
+    topic?: string,
+    opts?: { fallbackOnTopicFailure?: boolean; suppressTopicErrorMessage?: boolean }
+  ) {
     if (!this.documentId) return;
     this.showLoadingOverlay('Preparing a knowledge card for you...');
+    const fallbackEnabled = opts?.fallbackOnTopicFailure ?? (preference === 'topic');
     try {
       const res = await fetch(`${this.API_BASE}/api/knowledge-card`, {
         method: 'POST',
@@ -865,14 +925,157 @@ export class ChatComponent {
       console.error('Knowledge card error:', err);
       const message =
         err instanceof Error ? err.message : 'Sorry, I could not load the knowledge card.';
+      if (fallbackEnabled && this.isTopicUnsupportedMessage(message)) {
+        try {
+          await this.requestKnowledgeCard('pathway', undefined, {
+            fallbackOnTopicFailure: false
+          });
+        } catch (fallbackErr) {
+          console.error('Knowledge card fallback error:', fallbackErr);
+          this.addBotMessage(
+            fallbackErr instanceof Error
+              ? fallbackErr.message
+              : 'I could not load a backup knowledge card.'
+          );
+        }
+        return;
+      }
       this.addBotMessage(message);
     } finally {
       this.hideLoadingOverlay();
     }
   }
 
-  private async requestScenario(preference: ScenarioPreference, filters?: ScenarioFlowData, description?: string) {
+  private tryServeMandatoryScenario(
+    preference: ScenarioPreference,
+    reason: 'request' | 'blocked' | 'auto' | 'retry' = 'request',
+    specificScenario?: AdminScenarioConfig
+  ) {
+    const pending =
+      specificScenario ??
+      this.mandatoryScenarioQueue.find(
+        scenario => !this.completedMandatoryScenarioIds.has(scenario.id)
+      );
+    if (!pending) {
+      return false;
+    }
+    const filters = pending.filters ? { ...pending.filters } : undefined;
+    this.lastScenarioFilters = filters ? { ...filters } : undefined;
+    this.scenarioQuestion = pending.question;
+    this.scenarioResult = undefined;
+    this.scenarioDraft = '';
+    const key = this.normalizeKey(pending.question);
+    if (key) {
+      this.scenarioQuestionsSeen.add(key);
+    }
+    const summary =
+      pending.summary ||
+      pending.title ||
+      this.describeScenarioSummary(filters, pending.summary, pending.question);
+    const card: ScenarioCardPayload = {
+      id: this.generateId('scenario-card'),
+      question: pending.question,
+      summary,
+      preference: pending.preference || preference,
+      filters,
+      mandatory: true,
+      mandatoryScenarioId: pending.id
+    };
+    this.addScenarioCard(card);
+    const intro = this.describeMandatoryScenarioIntro(pending, reason);
+    if (intro) {
+      this.addBotMessage(intro);
+    }
+    const scenarioTopic = summary || pending.question;
+    this.setLastContentRequest({ type: 'scenario', preference: card.preference, topic: scenarioTopic });
+    this.knowledgeChain = 0;
+    this.quizChain = 0;
+    this.cardsSincePrompt += 1;
+    this.scenarioRetryAttempts = 0;
+    this.lastMandatoryReminder = Date.now();
+    this.mandatoryFlowActivated = true;
+    return true;
+  }
+
+  private markMandatoryScenarioComplete(id?: string) {
+    if (!id) return;
+    this.completedMandatoryScenarioIds.add(id);
+  }
+
+  private hasPendingMandatoryScenarios() {
+    return this.mandatoryScenarioQueue.some(
+      scenario => !this.completedMandatoryScenarioIds.has(scenario.id)
+    );
+  }
+
+  private findMandatoryScenarioById(id?: string) {
+    if (!id) return undefined;
+    return this.mandatoryScenarioQueue.find(scenario => scenario.id === id);
+  }
+
+  private describeMandatoryScenarioIntro(
+    scenario: AdminScenarioConfig,
+    reason: 'request' | 'blocked' | 'auto' | 'retry'
+  ) {
+    const position = this.mandatoryScenarioQueue.findIndex(item => item.id === scenario.id);
+    const ordinal =
+      position >= 0 ? `${position + 1}/${this.mandatoryScenarioQueue.length}` : '';
+    const label = ordinal ? ` ${ordinal}` : '';
+    const total = this.mandatoryScenarioQueue.length;
+    const introPrefix = !this.mandatoryIntroShown
+      ? `Heads up—your coach loaded ${total} mandatory scenario${total === 1 ? '' : 's'} to kick things off. `
+      : '';
+    this.mandatoryIntroShown = true;
+    switch (reason) {
+      case 'blocked':
+        return `${introPrefix}Let's finish mandatory scenario${label} before spinning up a new one. I've queued it up again—open it when you're ready.`;
+      case 'auto':
+        return `${introPrefix}Reminder: mandatory scenario${label} is waiting—open it when you're ready to respond.`;
+      case 'retry':
+        return `${introPrefix}We still need at least ${this.scenarioMasteryScore.toFixed(
+          1
+        )}/10 on mandatory scenario${label}. Let's take another pass.`;
+      default:
+        return `${introPrefix}Mandatory scenario${label} is ready—open it when you're ready to respond.`;
+    }
+  }
+
+  private ensureMandatoryScenarioReminder(
+    trigger: 'auto' | 'knowledge' | 'quiz' | 'retry' = 'auto',
+    scenarioId?: string
+  ) {
+    if (!this.hasPendingMandatoryScenarios()) return;
+    if (!this.mandatoryFlowActivated) return;
+    if (this.scenarioRemediation) return;
+    const throttleMs = trigger === 'retry' ? 0 : 10000;
+    if (Date.now() - this.lastMandatoryReminder < throttleMs) {
+      return;
+    }
+    const scenario = scenarioId ? this.findMandatoryScenarioById(scenarioId) : undefined;
+    const reason = trigger === 'retry' ? 'retry' : trigger === 'auto' ? 'auto' : 'auto';
+    this.tryServeMandatoryScenario('classic', reason, scenario);
+  }
+
+  private enforceMandatoryScenarioGate(context: 'request' | 'button' | 'flow' = 'request') {
+    if (!this.hasPendingMandatoryScenarios()) {
+      return false;
+    }
+    this.tryServeMandatoryScenario('classic', 'blocked');
+    if (this.pendingFlow?.type === 'scenario') {
+      this.pendingFlow = null;
+    }
+    return true;
+  }
+
+  private async requestScenario(
+    preference: ScenarioPreference,
+    filters?: ScenarioFlowData,
+    description?: string
+  ) {
     if (!this.documentId) return;
+    if (this.enforceMandatoryScenarioGate('request')) {
+      return;
+    }
     this.showLoadingOverlay('Shaping a practice scenario...');
     try {
       const descriptionPayload = description ?? filters?.summary;
@@ -982,6 +1185,7 @@ export class ChatComponent {
       preference: card.preference,
       topic: card.summary || card.question
     });
+    this.activeMandatoryScenarioId = card.mandatory ? card.mandatoryScenarioId : undefined;
     this.openScenarioModal(mode);
   }
 
@@ -1044,7 +1248,10 @@ export class ChatComponent {
     };
     this.scenarioRemediation = plan;
 
-    await this.requestKnowledgeCard('topic', focus);
+    await this.requestKnowledgeCard('topic', focus, {
+      fallbackOnTopicFailure: true,
+      suppressTopicErrorMessage: true
+    });
     this.addBotMessage("Okay, now let's go for some quiz questions on this concept. We'll run three quick checks.");
     await this.launchRemediationQuiz();
   }
@@ -1082,7 +1289,10 @@ export class ChatComponent {
       await this.completeScenarioRemediation();
       return;
     }
-    await this.requestQuiz('topic', plan.topic);
+    await this.requestQuiz('topic', plan.topic, {
+      fallbackOnTopicFailure: true,
+      suppressTopicErrorMessage: true
+    });
   }
 
   private async recordRemediationQuizResult(correct: boolean) {
@@ -1159,10 +1369,15 @@ export class ChatComponent {
     this.currentQuizTopic = undefined;
   }
 
-  private async requestQuiz(preference: QuizPreference, topic?: string) {
+  private async requestQuiz(
+    preference: QuizPreference,
+    topic?: string,
+    opts?: { fallbackOnTopicFailure?: boolean; suppressTopicErrorMessage?: boolean }
+  ) {
     if (!this.documentId) return;
     this.prepareQuizSlot();
     this.showLoadingOverlay('Loading a quiz question...');
+    const fallbackEnabled = opts?.fallbackOnTopicFailure ?? (preference === 'topic');
     try {
       const maxAttempts = 5;
       let quizData: any | null = null;
@@ -1205,6 +1420,7 @@ export class ChatComponent {
       this.quizCorrect = false;
       this.quizCorrectAnswer = '';
       this.quizExplanation = '';
+      this.quizCompletionLogged = false;
       this.currentQuizTopic = quizData.topic || topic || this.extractKeywordsFromQuestion(quizData.question);
       this.lastQuizTopic = this.currentQuizTopic || this.quizQuestion;
       this.attachActiveQuizMessage();
@@ -1217,6 +1433,22 @@ export class ChatComponent {
       console.error('Quiz error:', err);
       const message =
         err instanceof Error ? err.message : 'Sorry, I could not load a quiz question.';
+      if (fallbackEnabled && this.isTopicUnsupportedMessage(message)) {
+        try {
+          await this.requestQuiz('arbitrary', undefined, {
+            fallbackOnTopicFailure: false,
+            suppressTopicErrorMessage: opts?.suppressTopicErrorMessage
+          });
+        } catch (fallbackErr) {
+          console.error('Quiz fallback error:', fallbackErr);
+          this.addBotMessage(
+            fallbackErr instanceof Error
+              ? fallbackErr.message
+              : 'I could not load a backup quiz question.'
+          );
+        }
+        return;
+      }
       this.addBotMessage(message);
     } finally {
       this.hideLoadingOverlay();
@@ -1662,6 +1894,14 @@ export class ChatComponent {
       this.learnerProfile.knowledgeGaps.slice(-1)[0] ||
       this.documentTopic ||
       'this product';
+    this.lastEngagementNudge = now;
+    const suggestion = this.buildEngagementSuggestion(source, anchor);
+    if (suggestion) {
+      this.promptRecommendation(suggestion);
+      if (this.pendingSuggestion === suggestion) {
+        return;
+      }
+    }
     const topicLabel = this.formatTopicLabel(anchor);
     let message = '';
     switch (source) {
@@ -1675,12 +1915,77 @@ export class ChatComponent {
         message = `Need a different angle on ${topicLabel}? Ask for a quiz or knowledge card and I'll queue it right away.`;
         break;
     }
-    this.lastEngagementNudge = now;
     this.addBotMessage(message);
   }
 
   private setLastContentRequest(entry: { type: 'knowledge' | 'quiz' | 'scenario'; preference?: string; topic?: string }) {
     this.lastContentRequest = entry;
+  }
+
+  private buildEngagementSuggestion(
+    source: 'knowledge' | 'quiz' | 'scenario',
+    topic?: string
+  ): SuggestionPrompt | null {
+    const normalizedTopic = topic || undefined;
+    if (source === 'knowledge') {
+      return { cardType: 'scenario', reason: 'learning', topic: normalizedTopic };
+    }
+    if (source === 'quiz') {
+      return { cardType: 'knowledge', reason: 'learning', topic: normalizedTopic, variant: 'summary' };
+    }
+    return { cardType: 'quiz', reason: 'learning', topic: normalizedTopic };
+  }
+
+  getProgressPercent(key: ProgressKey) {
+    const requirement = this.trainingMinimums[key] || 0;
+    if (!requirement) {
+      return this.trainingProgress[key] > 0 ? 100 : 0;
+    }
+    return Math.min(100, (this.trainingProgress[key] / requirement) * 100);
+  }
+
+  getProgressGradient(key: ProgressKey) {
+    const percent = this.getProgressPercent(key);
+    return `conic-gradient(#0ea5e9 ${percent}%, #e2e8f0 ${percent}% 100%)`;
+  }
+
+  getProgressCopy(key: ProgressKey) {
+    const completed = this.trainingProgress[key];
+    const requirement = this.trainingMinimums[key] || 0;
+    if (!requirement) {
+      return `${completed} logged`;
+    }
+    const capped = Math.min(requirement, completed);
+    return `${capped} / ${requirement} complete`;
+  }
+
+  private incrementProgress(key: ProgressKey) {
+    this.trainingProgress[key] = (this.trainingProgress[key] || 0) + 1;
+    const complete = this.evaluateTrainingCompletion();
+    if (complete && !this.trainingCompletionAnnounced) {
+      this.trainingCompletionAnnounced = true;
+      this.trainingComplete = true;
+      this.addBotMessage(
+        'Nice work—you have met the training completion requirements that your admin set. Feel free to keep practicing or wrap up.'
+      );
+    } else {
+      this.trainingComplete = complete;
+    }
+  }
+
+  private evaluateTrainingCompletion() {
+    return (['knowledge', 'quiz', 'scenario'] as ProgressKey[]).every(key => {
+      const requirement = this.trainingMinimums[key] || 0;
+      if (!requirement) {
+        return true;
+      }
+      return this.trainingProgress[key] >= requirement;
+    });
+  }
+
+  getMinimumLabel(key: ProgressKey) {
+    const value = this.trainingMinimums[key];
+    return typeof value === 'number' ? value : '—';
   }
 
 
@@ -1702,6 +2007,10 @@ export class ChatComponent {
       this.quizCorrect = !!data.correct;
       this.quizCorrectAnswer = data.answer;
       this.quizExplanation = data.explanation || '';
+      if (!this.quizCompletionLogged && this.quizCorrect) {
+        this.incrementProgress('quiz');
+        this.quizCompletionLogged = true;
+      }
       this.updateProfileFromQuizResult();
       await this.handleQuizOutcome();
     } catch (err) {
@@ -1876,6 +2185,9 @@ export class ChatComponent {
       content: `Quiz result for "${card.question}": ${card.correct ? 'correct' : 'incorrect'}.`
     });
     this.scheduleScrollToBottom();
+    if (this.mandatoryFlowActivated) {
+      this.ensureMandatoryScenarioReminder('quiz');
+    }
   }
 
   private resetQuizState() {
@@ -1887,6 +2199,7 @@ export class ChatComponent {
     this.quizCorrect = false;
     this.quizCorrectAnswer = '';
     this.quizExplanation = '';
+    this.quizCompletionLogged = false;
   }
 
   private attachActiveQuizMessage() {
@@ -1945,7 +2258,15 @@ export class ChatComponent {
     const plain = `Knowledge card: ${card.title} — ${card.snippet}`;
     this.chatHistory.push({ role: 'assistant', content: plain });
     this.lastAssistantPlainText = plain;
+    if (card.audioUrl && card.audioId) {
+      this.pendingKnowledgeCompletions.add(card.audioId);
+    } else {
+      this.incrementProgress('knowledge');
+    }
     this.scheduleScrollToBottom();
+    if (this.mandatoryFlowActivated) {
+      this.ensureMandatoryScenarioReminder('knowledge');
+    }
   }
 
   openScenarioModal(mode: 'voice' | 'text') {
@@ -2000,6 +2321,9 @@ export class ChatComponent {
 
   private processScenarioResult(result: { score: number; feedback: string; transcript?: string }) {
     this.scenarioResult = result;
+    const score = Number(result.score ?? 0);
+    const masteryScore = this.scenarioMasteryScore;
+    const mandatoryAttemptId = this.activeMandatoryScenarioId;
 
     if (result.transcript) {
       const transcriptHtml = `
@@ -2011,7 +2335,7 @@ export class ChatComponent {
       this.pushScenarioBubble('user', transcriptHtml);
     }
 
-    const scoreText = Number(result.score ?? 0).toFixed(1);
+    const scoreText = score.toFixed(1);
     const feedbackHtml = `
       <div class="scenario-feedback-inline">
         <p class="scenario-feedback-title">Scenario feedback</p>
@@ -2025,8 +2349,31 @@ export class ChatComponent {
       content: `Scenario feedback. Score: ${result.score}`
     });
     this.updateProfileFromScenario(result);
-    this.maybeOfferWeaknessRecommendation();
-    this.queueScenarioFollowUp(result);
+
+    const passed = score >= masteryScore;
+    if (passed) {
+      this.incrementProgress('scenario');
+      if (mandatoryAttemptId) {
+        this.markMandatoryScenarioComplete(mandatoryAttemptId);
+        this.ensureMandatoryScenarioReminder('auto');
+      }
+      this.maybeOfferWeaknessRecommendation();
+      this.queueScenarioFollowUp(result);
+    } else {
+      if (mandatoryAttemptId) {
+        this.addBotMessage(
+          `We need at least ${masteryScore.toFixed(
+            1
+          )}/10 to clear that mandatory scenario. Let's run three quick quizzes on this exact topic—score two out of three and I'll bring the scenario back.`
+        );
+        this.queueScenarioFollowUp(result);
+      } else {
+        this.maybeOfferWeaknessRecommendation();
+        this.queueScenarioFollowUp(result);
+      }
+    }
+
+    this.activeMandatoryScenarioId = undefined;
   }
 
   private pushScenarioBubble(from: 'user' | 'bot', html: string) {
@@ -2110,6 +2457,10 @@ export class ChatComponent {
 
   onKnowledgeAudioEnded(audioId: string) {
     this.setKnowledgeAudioState(audioId, { playing: false, current: 0 });
+    if (this.pendingKnowledgeCompletions.has(audioId)) {
+      this.pendingKnowledgeCompletions.delete(audioId);
+      this.incrementProgress('knowledge');
+    }
   }
 
   seekKnowledgeAudio(audioId: string, evt: MouseEvent) {
@@ -2216,5 +2567,14 @@ export class ChatComponent {
       // Ignore JSON parsing errors and fall back to the default message.
     }
     return fallback;
+  }
+
+  private isTopicUnsupportedMessage(message: string) {
+    if (!message) return false;
+    const lowered = message.toLowerCase();
+    return (
+      lowered.includes("requested topic isn't covered") ||
+      lowered.includes('topic is not covered by this document')
+    );
   }
 }
